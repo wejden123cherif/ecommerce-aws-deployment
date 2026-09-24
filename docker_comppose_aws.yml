@@ -1,0 +1,59 @@
+services:
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user_services/Dockerfile
+    container_name: ecommerce-user-service
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${RDS_HOST}:5432/ecommerce_user_db
+      API_TOKEN: ${API_TOKEN}
+
+  product-service:
+    build:
+      context: .
+      dockerfile: product_services/Dockerfile
+    container_name: ecommerce-product-service
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${RDS_HOST}:5432/ecommerce_product_db
+      API_TOKEN: ${API_TOKEN}
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order_service/Dockerfile
+    container_name: ecommerce-order-service
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${RDS_HOST}:5432/ecommerce_order_db
+      API_TOKEN: ${API_TOKEN}
+      USER_SERVICE_URL: http://user-service:5002
+      PRODUCT_SERVICE_URL: http://product-service:5001
+    depends_on:
+      - user-service
+      - product-service
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api_gateway/Dockerfile
+    container_name: ecommerce-api-gateway
+    environment:
+      PRODUCT_SERVICE_URL: http://product-service:5001
+      USER_SERVICE_URL: http://user-service:5002
+      ORDER_SERVICE_URL: http://order-service:5003
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: front_end/Dockerfile
+    container_name: ecommerce-frontend
+    depends_on:
+      - api-gateway
+    ports:
+      - "5500:5500"
