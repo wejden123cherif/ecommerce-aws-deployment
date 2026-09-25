@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from sqlalchemy import text
 import os
+import requests
 from common.auth import cognito_required
 load_dotenv()
 app=Flask(__name__)
@@ -13,11 +14,13 @@ class User(db.Model):
     __tablename__="users"
     id=db.Column(db.Integer,primary_key=True)
     name=db.Column(db.String(100),nullable=False)
+    family_name=db.Column(db.String(100),nullable=True)
     email=db.Column(db.String(150),unique=True,nullable=False)
     def to_dict(self):
         return {
             "id":self.id,
             "name":self.name,
+            "family_name":self.family_name,
             "email":self.email
         }
     cognito_sub=db.Column(db.String(255),unique=True,index=True,nullable=True)
@@ -114,6 +117,9 @@ with app.app_context():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255)"
     ))
     db.session.execute(text(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS family_name VARCHAR(100)"
+    ))
+    db.session.execute(text(
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_cognito_sub "
         "ON users (cognito_sub) WHERE cognito_sub IS NOT NULL"
     ))
@@ -122,21 +128,61 @@ with app.app_context():
 @cognito_required
 def get_current_user():
     claims = g.cognito_claims
+    cognito_domain = os.getenv("COGNITO_DOMAIN")
+    if not cognito_domain:
+        return jsonify({"error": "Cognito profile verification is not configured"}), 503
+    try:
+        profile_response = requests.get(
+            f"{cognito_domain.rstrip('/')}/oauth2/userInfo",
+            headers={"Authorization": f"Bearer {g.cognito_access_token}"},
+            timeout=5,
+        )
+        if profile_response.status_code != 200:
+            return jsonify({"error": "Unable to verify Cognito profile"}), 401
+        profile = profile_response.json()
+    except requests.RequestException:
+        return jsonify({"error": "Cognito profile service unavailable"}), 503
+
+    required_profile = ("email", "given_name", "family_name")
+    if (
+        any(not profile.get(attribute) for attribute in required_profile)
+        or profile.get("email_verified") is not True
+    ):
+        return jsonify({
+            "error": "Cognito profile requires verified email, given name, and family name"
+        }), 422
     cognito_sub = claims["sub"]
     user = User.query.filter_by(cognito_sub=cognito_sub).first()
-    email = claims.get("email") or f"{cognito_sub}@cognito.local"
-    name = claims.get("name") or claims.get("username") or email
+    email = profile.get("email") or f"{cognito_sub}@cognito.local"
+    given_name = profile.get("given_name") or profile.get("name") or profile.get("username") or email
+    family_name = profile.get("family_name") or ""
+    name = f"{given_name} {family_name}".strip()
 
     if not user:
         user = User.query.filter_by(email=email).first()
         if user:
             user.cognito_sub = cognito_sub
+            user.name = name
+            user.family_name = family_name or user.family_name
         else:
-            user = User(name=name, email=email, cognito_sub=cognito_sub)
+            user = User(
+                name=name,
+                family_name=family_name or None,
+                email=email,
+                cognito_sub=cognito_sub,
+            )
             db.session.add(user)
-        db.session.commit()
+    else:
+        user.name = name
+        user.family_name = family_name or user.family_name
+        user.email = email
 
-    return jsonify(user.to_dict())
+    db.session.commit()
+
+    result = user.to_dict()
+    result["identity_provider"] = "Amazon Cognito User Pool"
+    result["cognito_profile_verified"] = True
+    return jsonify(result)
 
 
 if __name__ == "__main__":

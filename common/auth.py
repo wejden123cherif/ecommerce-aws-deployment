@@ -77,6 +77,7 @@ def cognito_required(function):
         if len(parts) != 2 or parts[0] != "Bearer" or not parts[1]:
             return jsonify({"error": "Valid Bearer access token required"}), 401
         try:
+            g.cognito_access_token = parts[1]
             g.cognito_claims = validate_access_token(parts[1])
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 503

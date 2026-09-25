@@ -583,7 +583,7 @@ Status: CONFIRMED
 
 ## Authentication
 
-The browser uses an Amazon Cognito User Pool public App Client with OAuth 2.0 Authorization Code Flow and PKCE. It stores the short-lived access token in `sessionStorage`; it does not use an ID token or refresh token as API authorization, and it never contains a client secret.
+The browser uses an Amazon Cognito User Pool public App Client with OAuth 2.0 Authorization Code Flow and PKCE. Cognito Managed Login collects and verifies the user's email, given name, and family name according to the User Pool attribute settings. The app stores the short-lived access token in `sessionStorage`; it does not use an ID token or refresh token as API authorization, and it never contains a client secret.
 
 The frontend reads these placeholders from its environment:
 
@@ -595,13 +595,13 @@ COGNITO_LOGOUT_URI=http://localhost:5500/
 COGNITO_SCOPES=openid email profile
 ```
 
-The API Gateway, user service, order service, and product service validate access-token signatures using the Cognito JWKS endpoint. They check the issuer, expiration, `RS256`, `token_use=access`, `sub`, and the expected `client_id`. JWKS keys are cached in memory.
+The API Gateway, user service, order service, and product service validate access-token signatures using the Cognito JWKS endpoint. They check the issuer, expiration, `RS256`, `token_use=access`, `sub`, and the expected `client_id`. JWKS keys are cached in memory. The user service then calls Cognito UserInfo with that already-validated access token and uses the returned `email`, `given_name`, and `family_name` claims for profile synchronization.
 
-`GET /users/me` maps the verified Cognito `sub` to `users.cognito_sub`, synchronizing the email and name profile on first access. The `cognito_sub` column is nullable so existing users are preserved. The order service derives `orders.user_id` from this mapping, filters `GET /orders` to that user, and returns 404 for another user's order. A conflicting body `user_id` on `POST /orders` is rejected.
+`GET /users/me` maps the verified Cognito `sub` to `users.cognito_sub`, synchronizing the email, given name, and family name profile on first access. It reports the identity provider as Amazon Cognito only after the verified UserInfo lookup succeeds. The `cognito_sub` column is nullable so existing users are preserved. The order service derives `orders.user_id` from this mapping, filters `GET /orders` to that user, and returns 404 for another user's order. A conflicting body `user_id` on `POST /orders` is rejected.
 
 ### AWS Cognito configuration required after this code change
 
-Create a User Pool, a public App Client with no client secret, a hosted UI domain, and callback/logout URLs matching the configured values. Enable the desired email sign-up and verification settings, and allow the `openid`, `email`, and `profile` scopes. Then provide these values to Compose as placeholders replaced by your deployment configuration:
+Create a User Pool, a public App Client with no client secret, a hosted UI domain, and callback/logout URLs matching the configured values. Enable email sign-up and verification. Add `email`, `given_name`, and `family_name` as required or writable standard attributes according to your registration policy. Allow the `openid`, `email`, and `profile` scopes so Cognito UserInfo can return the profile. Then provide these values to Compose as placeholders replaced by your deployment configuration:
 
 ```env
 COGNITO_REGION=your-region

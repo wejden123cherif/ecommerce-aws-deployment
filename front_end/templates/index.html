@@ -1,101 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <title>E-Commerce Dashboard</title>
-
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='styles.css') }}">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#132b2b">
+    <title>Marketline | Ecommerce Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
-
 <body>
-
-    <header>
-
-        <h1>E-Commerce Dashboard</h1>
-
-        <p>Flask + PostgreSQL + Microservices</p>
-
-        <div id="auth-status">Not authenticated</div>
-
-        <button id="login-button" type="button">Login with Cognito</button>
-        <button id="logout-button" type="button" hidden>Logout</button>
-
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="/" aria-label="Marketline dashboard home">
+                <span class="brand-mark">M</span>
+                <span>Marketline</span>
+            </a>
+            <div class="header-actions">
+                <span id="auth-status" class="auth-status" data-state="signed-out">Signed out</span>
+                <button id="login-button" class="button button-light" type="button">Sign in</button>
+                <button id="logout-button" class="button button-quiet" type="button" hidden>Log out</button>
+            </div>
+        </div>
     </header>
 
-
-    <main>
-
-        <!-- USERS -->
-
-        <section>
-
-            <h2>Signed-in user</h2>
-            <div id="current-user">Login to view your profile and orders.</div>
-
-        </section>
-
-        <section>
-
-            <h2>Users</h2>
-
-            <button onclick="loadUsers()">
-                Refresh Users
-            </button>
-
-            <div id="users">
-                Loading users...
+    <main class="page-shell">
+        <section class="welcome-panel" aria-labelledby="page-title">
+            <div>
+                <p class="eyebrow">Your commerce desk</p>
+                <h1 id="page-title">Everything in one clear view.</h1>
+                <p class="intro">Browse what is available, then sign in to keep track of your profile and orders.</p>
             </div>
-
-        </section>
-
-
-        <!-- PRODUCTS -->
-
-        <section>
-
-            <h2>Products</h2>
-
-            <button onclick="loadProducts()">
-                Refresh Products
-            </button>
-
-            <div id="products">
-                Loading products...
+            <div class="welcome-detail" aria-hidden="true">
+                <span class="detail-line"></span>
+                <span class="detail-label">LIVE CATALOGUE</span>
             </div>
-
         </section>
 
+        <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
 
-        <!-- ORDERS -->
-
-        <section>
-
-            <h2>Orders</h2>
-
-            <button onclick="loadOrders()">
-                Refresh Orders
-            </button>
-
-            <div id="orders">
-                Login required to view your orders.
+        <section id="auth-card" class="auth-card" aria-labelledby="auth-card-title">
+            <div class="auth-card-icon" aria-hidden="true">01</div>
+            <div class="auth-card-copy">
+                <p class="eyebrow">Private workspace</p>
+                <h2 id="auth-card-title">Sign in to see your orders</h2>
+                <p id="auth-card-message">Your profile and order history are protected. Sign in securely with your customer account to continue.</p>
             </div>
-
+            <div class="auth-card-action">
+                <button id="auth-card-button" class="button button-primary" type="button">Sign in securely</button>
+                <span class="secure-note">Secure sign in via Cognito</span>
+            </div>
         </section>
 
+        <section id="profile-section" class="profile-strip" aria-labelledby="profile-title" hidden>
+            <div class="profile-avatar" id="profile-avatar" aria-hidden="true">M</div>
+            <div>
+                <p class="eyebrow">Signed-in customer</p>
+                <h2 id="profile-title">Your profile</h2>
+                <p id="current-user" class="profile-value">Loading your profile...</p>
+                <p id="profile-proof" class="profile-proof">Verifying your Cognito profile...</p>
+            </div>
+            <span class="signed-in-badge">Signed in</span>
+        </section>
+
+        <div class="dashboard-grid">
+            <section class="content-section" aria-labelledby="products-title">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Explore</p>
+                        <h2 id="products-title">Products</h2>
+                    </div>
+                    <button id="refresh-products" class="button button-outline" type="button">Refresh</button>
+                </div>
+                <div id="products" class="card-grid" aria-live="polite">
+                    <div class="loading-state"><span class="spinner"></span>Loading products...</div>
+                </div>
+            </section>
+
+            <section class="content-section orders-section" aria-labelledby="orders-title">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Private</p>
+                        <h2 id="orders-title">Your orders</h2>
+                    </div>
+                    <button id="refresh-orders" class="button button-outline" type="button">Refresh</button>
+                </div>
+                <div id="orders" class="card-grid" aria-live="polite">
+                    <div class="protected-state">
+                        <span class="lock-icon" aria-hidden="true">&#9679;</span>
+                        <strong>Your orders are protected</strong>
+                        <span>Sign in to view your personal order history.</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <section class="content-section users-section" aria-labelledby="users-title">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Directory</p>
+                    <h2 id="users-title">Customers</h2>
+                </div>
+                <button id="refresh-users" class="button button-outline" type="button">Refresh</button>
+            </div>
+            <div id="users" class="card-grid" aria-live="polite">
+                <div class="loading-state"><span class="spinner"></span>Loading customers...</div>
+            </div>
+        </section>
     </main>
 
+    <footer class="site-footer">Marketline dashboard <span>•</span> Built for clear commerce operations</footer>
 
     <script src="{{ url_for('static', filename='auth.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
-
 </body>
-
 </html>

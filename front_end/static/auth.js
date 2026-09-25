@@ -6,7 +6,9 @@ const Auth = (() => {
 
     function base64Url(bytes) {
         return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-            .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, "");
     }
 
     function randomString(length = 32) {
@@ -15,13 +17,19 @@ const Auth = (() => {
 
     async function challenge(verifier) {
         const digest = await crypto.subtle.digest(
-            "SHA-256", new TextEncoder().encode(verifier)
+            "SHA-256",
+            new TextEncoder().encode(verifier)
         );
         return base64Url(digest);
     }
 
+    function clearCallbackParams() {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     async function loadConfig() {
         const response = await fetch("/config");
+        if (!response.ok) throw new Error("Authentication settings are unavailable.");
         config = await response.json();
         return config;
     }
@@ -29,11 +37,12 @@ const Auth = (() => {
     async function login() {
         if (!config) await loadConfig();
         if (!config.domain || !config.clientId) {
-            throw new Error("Cognito configuration is not set");
+            throw new Error("Secure sign-in is not configured yet.");
         }
         const verifier = randomString();
+        const state = randomString();
         sessionStorage.setItem(VERIFIER_KEY, verifier);
-        sessionStorage.setItem(STATE_KEY, randomString());
+        sessionStorage.setItem(STATE_KEY, state);
         const params = new URLSearchParams({
             response_type: "code",
             client_id: config.clientId,
@@ -41,17 +50,27 @@ const Auth = (() => {
             scope: config.scopes,
             code_challenge_method: "S256",
             code_challenge: await challenge(verifier),
-            state: sessionStorage.getItem(STATE_KEY),
+            state,
         });
         window.location.assign(`${config.domain}/oauth2/authorize?${params}`);
     }
 
     async function exchangeCode() {
         const params = new URLSearchParams(window.location.search);
+        if (params.get("error")) {
+            clearCallbackParams();
+            throw new Error("Sign in was cancelled or could not be completed.");
+        }
         const code = params.get("code");
-        if (!code) return;
+        if (!code) return false;
         if (params.get("state") !== sessionStorage.getItem(STATE_KEY)) {
-            throw new Error("Invalid OAuth state");
+            clearCallbackParams();
+            throw new Error("Your sign-in session is invalid. Please try again.");
+        }
+        const verifier = sessionStorage.getItem(VERIFIER_KEY);
+        if (!verifier) {
+            clearCallbackParams();
+            throw new Error("Your sign-in session expired. Please try again.");
         }
         const response = await fetch(`${config.domain}/oauth2/token`, {
             method: "POST",
@@ -61,23 +80,35 @@ const Auth = (() => {
                 client_id: config.clientId,
                 code,
                 redirect_uri: config.redirectUri,
-                code_verifier: sessionStorage.getItem(VERIFIER_KEY),
+                code_verifier: verifier,
             }),
         });
-        if (!response.ok) throw new Error("Cognito token exchange failed");
+        if (!response.ok) {
+            clearCallbackParams();
+            throw new Error("We could not finish signing you in. Please try again.");
+        }
         const tokens = await response.json();
+        if (!tokens.access_token) {
+            clearCallbackParams();
+            throw new Error("No sign-in token was returned. Please try again.");
+        }
         sessionStorage.setItem(TOKEN_KEY, tokens.access_token);
         sessionStorage.removeItem(STATE_KEY);
         sessionStorage.removeItem(VERIFIER_KEY);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        clearCallbackParams();
+        return true;
     }
 
     function accessToken() {
         return sessionStorage.getItem(TOKEN_KEY);
     }
 
-    function logout() {
+    function clearSession() {
         sessionStorage.removeItem(TOKEN_KEY);
+    }
+
+    function logout() {
+        clearSession();
         if (config && config.domain && config.clientId) {
             const params = new URLSearchParams({
                 client_id: config.clientId,
@@ -89,5 +120,5 @@ const Auth = (() => {
         }
     }
 
-    return { loadConfig, login, exchangeCode, accessToken, logout };
+    return { loadConfig, login, exchangeCode, accessToken, clearSession, logout };
 })();
