@@ -1,14 +1,14 @@
-from flask import Flask,request,jsonify
+from flask import Flask,request,jsonify,g
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
-from functools import wraps
+from sqlalchemy import text
 import os
+from common.auth import cognito_required
 load_dotenv()
 app=Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"]=os.getenv("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"]=False
 db=SQLAlchemy(app)
-API_TOKEN=os.getenv("API_TOKEN")
 class User(db.Model):
     __tablename__="users"
     id=db.Column(db.Integer,primary_key=True)
@@ -20,23 +20,9 @@ class User(db.Model):
             "name":self.name,
             "email":self.email
         }
-def token_required(f):
-    @wraps(f)
-    def decorated(*args,**kwargs):
-        auth_header=request.headers.get("Authorization")
-        if not auth_header:
-            return jsonify({"error":"Authorization header required"}),401
-        parts=auth_header.split()
-        if len(parts)!=2 or parts[0]!="Bearer":
-            return jsonify({
-                "error":"Authorization header required"
-            }),401
-        if parts[1]!=API_TOKEN:
-            return jsonify({"error":"Invalid Authorization format"}),401
-        return f(*args,**kwargs)
-    return decorated
+    cognito_sub=db.Column(db.String(255),unique=True,index=True,nullable=True)
 @app.route("/users", methods=["POST"])
-@token_required
+@cognito_required
 def create_user():
 
     data = request.get_json()
@@ -96,7 +82,7 @@ def get_user(user_id):
 
     return jsonify(user.to_dict())
 @app.route("/users/<int:user_id>", methods=["DELETE"])
-@token_required
+@cognito_required
 def delete_user(user_id):
 
     user = db.session.get(User, user_id)
@@ -124,6 +110,33 @@ def health():
 
 with app.app_context():
     db.create_all()
+    db.session.execute(text(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255)"
+    ))
+    db.session.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_cognito_sub "
+        "ON users (cognito_sub) WHERE cognito_sub IS NOT NULL"
+    ))
+    db.session.commit()
+@app.route("/users/me", methods=["GET"])
+@cognito_required
+def get_current_user():
+    claims = g.cognito_claims
+    cognito_sub = claims["sub"]
+    user = User.query.filter_by(cognito_sub=cognito_sub).first()
+    email = claims.get("email") or f"{cognito_sub}@cognito.local"
+    name = claims.get("name") or claims.get("username") or email
+
+    if not user:
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.cognito_sub = cognito_sub
+        else:
+            user = User(name=name, email=email, cognito_sub=cognito_sub)
+            db.session.add(user)
+        db.session.commit()
+
+    return jsonify(user.to_dict())
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import requests
 import os
 from flask_cors import CORS
+from common.auth import cognito_required
 
 load_dotenv()
 
@@ -86,6 +87,12 @@ def users():
         f"{USER_SERVICE_URL}/users"
     )
 
+
+@app.route("/users/me", methods=["GET"])
+@cognito_required
+def current_user():
+    return forward_request(f"{USER_SERVICE_URL}/users/me")
+
 @app.route(
     "/users/<int:user_id>",
     methods=["GET", "DELETE"]
@@ -100,6 +107,7 @@ def user(user_id):
     "/orders",
     methods=["GET", "POST"]
 )
+@cognito_required
 def orders():
 
     return forward_request(
@@ -111,6 +119,7 @@ def orders():
     "/orders/<int:order_id>",
     methods=["GET"]
 )
+@cognito_required
 def order(order_id):
 
     return forward_request(

@@ -23,12 +23,24 @@
 
         <p>Flask + PostgreSQL + Microservices</p>
 
+        <div id="auth-status">Not authenticated</div>
+
+        <button id="login-button" type="button">Login with Cognito</button>
+        <button id="logout-button" type="button" hidden>Logout</button>
+
     </header>
 
 
     <main>
 
         <!-- USERS -->
+
+        <section>
+
+            <h2>Signed-in user</h2>
+            <div id="current-user">Login to view your profile and orders.</div>
+
+        </section>
 
         <section>
 
@@ -73,7 +85,7 @@
             </button>
 
             <div id="orders">
-                Loading orders...
+                Login required to view your orders.
             </div>
 
         </section>
@@ -81,6 +93,7 @@
     </main>
 
 
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 
 </body>

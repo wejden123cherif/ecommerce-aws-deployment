@@ -7,6 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY order_service/ .
+COPY common/ common/
 
 EXPOSE 5003
 

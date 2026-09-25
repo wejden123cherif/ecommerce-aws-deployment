@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
-from functools import wraps
 import os
+from common.auth import service_or_cognito_required
 
 load_dotenv()
 
@@ -13,7 +13,6 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-API_TOKEN = os.getenv("API_TOKEN")
 
 
 # =========================
@@ -40,48 +39,11 @@ class Product(db.Model):
 
 
 # =========================
-# TOKEN AUTHENTICATION
-# =========================
-
-def token_required(function):
-
-    @wraps(function)
-    def decorated(*args, **kwargs):
-
-        auth_header = request.headers.get("Authorization")
-
-        if not auth_header:
-            return jsonify({
-                "error": "Authorization header is required"
-            }), 401
-
-        parts = auth_header.split()
-
-        if len(parts) != 2 or parts[0] != "Bearer":
-
-            return jsonify({
-                "error": "Use: Bearer <token>"
-            }), 401
-
-        token = parts[1]
-
-        if token != API_TOKEN:
-
-            return jsonify({
-                "error": "Invalid API token"
-            }), 401
-
-        return function(*args, **kwargs)
-
-    return decorated
-
-
-# =========================
 # CREATE PRODUCT
 # =========================
 
 @app.route("/products", methods=["POST"])
-@token_required
+@service_or_cognito_required
 def create_product():
 
     data = request.get_json()
@@ -170,7 +132,7 @@ def get_product(product_id):
     "/products/<int:product_id>/stock",
     methods=["PUT"]
 )
-@token_required
+@service_or_cognito_required
 def update_stock(product_id):
 
     product = db.session.get(Product, product_id)
@@ -215,7 +177,7 @@ def update_stock(product_id):
     "/products/<int:product_id>",
     methods=["DELETE"]
 )
-@token_required
+@service_or_cognito_required
 def delete_product(product_id):
 
     product = db.session.get(Product, product_id)

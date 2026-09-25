@@ -32,7 +32,9 @@ services:
 
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ecommerce_user_db
-      API_TOKEN: ${API_TOKEN}
+      COGNITO_REGION: ${COGNITO_REGION}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID}
 
     depends_on:
       postgres:
@@ -51,7 +53,10 @@ services:
 
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ecommerce_product_db
-      API_TOKEN: ${API_TOKEN}
+      COGNITO_REGION: ${COGNITO_REGION}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
 
     depends_on:
       postgres:
@@ -70,7 +75,10 @@ services:
 
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ecommerce_order_db
-      API_TOKEN: ${API_TOKEN}
+      COGNITO_REGION: ${COGNITO_REGION}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
 
       USER_SERVICE_URL: http://user-service:5002
       PRODUCT_SERVICE_URL: http://product-service:5001
@@ -97,6 +105,9 @@ services:
     container_name: ecommerce-api-gateway
 
     environment:
+      COGNITO_REGION: ${COGNITO_REGION}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID}
       PRODUCT_SERVICE_URL: http://product-service:5001
       USER_SERVICE_URL: http://user-service:5002
       ORDER_SERVICE_URL: http://order-service:5003
@@ -121,6 +132,13 @@ services:
       dockerfile: front_end/Dockerfile
 
     container_name: ecommerce-frontend
+
+    environment:
+      COGNITO_DOMAIN: ${COGNITO_DOMAIN}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID}
+      COGNITO_REDIRECT_URI: ${COGNITO_REDIRECT_URI}
+      COGNITO_LOGOUT_URI: ${COGNITO_LOGOUT_URI}
+      COGNITO_SCOPES: ${COGNITO_SCOPES}
 
     depends_on:
       api-gateway:

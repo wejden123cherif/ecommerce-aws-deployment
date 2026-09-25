@@ -14,7 +14,7 @@ The project demonstrates how independent microservices communicate with each oth
 * API Gateway
 * PostgreSQL database
 * RESTful APIs
-* API Token Authentication
+* Amazon Cognito authentication with Authorization Code + PKCE
 * Product stock management
 * Order creation and validation
 * Microservice-to-microservice communication
@@ -94,8 +94,7 @@ Order Service
 
 ### Authentication
 
-* API Token Authentication
-* Bearer Token
+* Verified Cognito access tokens
 
 ### Frontend
 
@@ -197,7 +196,9 @@ Example:
 
 ```env
 DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_user_db
-API_TOKEN=YOUR_SECRET_TOKEN
+COGNITO_REGION=your-region
+COGNITO_USER_POOL_ID=your-user-pool-id
+COGNITO_CLIENT_ID=your-public-app-client-id
 ```
 
 Use the appropriate database name for each service.
@@ -206,39 +207,34 @@ Use the appropriate database name for each service.
 
 ```env
 DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_product_db
-API_TOKEN=YOUR_SECRET_TOKEN
+COGNITO_REGION=your-region
+COGNITO_USER_POOL_ID=your-user-pool-id
+COGNITO_CLIENT_ID=your-public-app-client-id
 ```
 
 ### User Service
 
 ```env
 DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_user_db
-API_TOKEN=YOUR_SECRET_TOKEN
+COGNITO_REGION=your-region
+COGNITO_USER_POOL_ID=your-user-pool-id
+COGNITO_CLIENT_ID=your-public-app-client-id
 ```
 
 ### Order Service
 
 ```env
 DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_order_db
-API_TOKEN=YOUR_SECRET_TOKEN
+COGNITO_REGION=your-region
+COGNITO_USER_POOL_ID=your-user-pool-id
+COGNITO_CLIENT_ID=your-public-app-client-id
+INTERNAL_SERVICE_TOKEN=server-only-placeholder
 
 USER_SERVICE_URL=http://localhost:5002
 PRODUCT_SERVICE_URL=http://localhost:5001
 ```
 
-> Never commit real passwords or API tokens to GitHub.
-
----
-
-## 🔐 Generate API Token
-
-Generate a secure token using Python:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-Use the generated token in your local `.env` files.
+> Never commit real passwords, tokens, or Cognito values to GitHub.
 
 ---
 
@@ -428,12 +424,6 @@ GET /orders
 GET /orders/{id}
 ```
 
-Protected endpoints require:
-
-```http
-Authorization: Bearer YOUR_SECRET_TOKEN
-```
-
 ---
 
 # 🧪 Example API Flow
@@ -542,25 +532,7 @@ It displays:
 
 # 🔒 Security
 
-The project uses Bearer Token authentication for protected APIs.
-
-Example:
-
-```http
-Authorization: Bearer YOUR_SECRET_TOKEN
-```
-
-Secrets are stored in `.env` files and excluded from Git using `.gitignore`.
-
-For production, this project can be improved with:
-
-* JWT authentication
-* Refresh tokens
-* HTTPS
-* Password hashing
-* Role-based access control
-* Secret management
-* Rate limiting
+Protected API requests use a verified Cognito access token. The browser never receives the server-only `INTERNAL_SERVICE_TOKEN`.
 
 ---
 
@@ -608,6 +580,52 @@ Status: CONFIRMED
 * Payment service
 * Inventory service
 * Notification service
+
+## Authentication
+
+The browser uses an Amazon Cognito User Pool public App Client with OAuth 2.0 Authorization Code Flow and PKCE. It stores the short-lived access token in `sessionStorage`; it does not use an ID token or refresh token as API authorization, and it never contains a client secret.
+
+The frontend reads these placeholders from its environment:
+
+```env
+COGNITO_DOMAIN=https://your-domain.auth.your-region.amazoncognito.com
+COGNITO_CLIENT_ID=your-public-app-client-id
+COGNITO_REDIRECT_URI=http://localhost:5500/
+COGNITO_LOGOUT_URI=http://localhost:5500/
+COGNITO_SCOPES=openid email profile
+```
+
+The API Gateway, user service, order service, and product service validate access-token signatures using the Cognito JWKS endpoint. They check the issuer, expiration, `RS256`, `token_use=access`, `sub`, and the expected `client_id`. JWKS keys are cached in memory.
+
+`GET /users/me` maps the verified Cognito `sub` to `users.cognito_sub`, synchronizing the email and name profile on first access. The `cognito_sub` column is nullable so existing users are preserved. The order service derives `orders.user_id` from this mapping, filters `GET /orders` to that user, and returns 404 for another user's order. A conflicting body `user_id` on `POST /orders` is rejected.
+
+### AWS Cognito configuration required after this code change
+
+Create a User Pool, a public App Client with no client secret, a hosted UI domain, and callback/logout URLs matching the configured values. Enable the desired email sign-up and verification settings, and allow the `openid`, `email`, and `profile` scopes. Then provide these values to Compose as placeholders replaced by your deployment configuration:
+
+```env
+COGNITO_REGION=your-region
+COGNITO_USER_POOL_ID=your-user-pool-id
+COGNITO_CLIENT_ID=your-public-app-client-id
+COGNITO_ISSUER=https://cognito-idp.your-region.amazonaws.com/your-user-pool-id
+COGNITO_DOMAIN=https://your-domain.auth.your-region.amazoncognito.com
+COGNITO_REDIRECT_URI=https://your-frontend-host/
+COGNITO_LOGOUT_URI=https://your-frontend-host/
+COGNITO_SCOPES=openid email profile
+INTERNAL_SERVICE_TOKEN=server-only-internal-placeholder
+```
+
+### Database migration
+
+On startup, the user service runs an additive PostgreSQL migration equivalent to:
+
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_users_cognito_sub
+ON users (cognito_sub) WHERE cognito_sub IS NOT NULL;
+```
+
+It does not drop tables, delete users, or wipe existing data.
 
 ---
 
