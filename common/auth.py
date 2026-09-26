@@ -21,14 +21,15 @@ def _config():
     return issuer, os.getenv("COGNITO_CLIENT_ID")
 
 
-def _jwks(issuer):
+def _jwks(issuer, force_refresh=False):
     global _jwks_cache
-    if _jwks_cache and _jwks_cache["issuer"] == issuer:
+    if _jwks_cache and _jwks_cache["issuer"] == issuer and not force_refresh:
         return _jwks_cache["keys"]
 
     with _jwks_lock:
-        if _jwks_cache and _jwks_cache["issuer"] == issuer:
+        if _jwks_cache and _jwks_cache["issuer"] == issuer and not force_refresh:
             return _jwks_cache["keys"]
+
         response = requests.get(f"{issuer}/.well-known/jwks.json", timeout=5)
         response.raise_for_status()
         keys = response.json()["keys"]
@@ -41,7 +42,11 @@ def validate_access_token(token):
     if not issuer or not client_id:
         raise RuntimeError("Cognito authentication is not configured")
 
-    header = jwt.get_unverified_header(token)
+    try:
+        header = jwt.get_unverified_header(token)
+    except jwt.InvalidTokenError as error:
+        raise InvalidTokenError("Malformed JWT") from error
+
     if header.get("alg") != "RS256" or not header.get("kid"):
         raise InvalidTokenError("Unexpected signing algorithm")
 
@@ -49,6 +54,11 @@ def validate_access_token(token):
         (key for key in _jwks(issuer) if key.get("kid") == header["kid"]),
         None,
     )
+    if not key_data:
+        key_data = next(
+            (key for key in _jwks(issuer, force_refresh=True) if key.get("kid") == header["kid"]),
+            None,
+        )
     if not key_data:
         raise InvalidTokenError("Signing key not found")
 
@@ -58,7 +68,10 @@ def validate_access_token(token):
         signing_key,
         algorithms=["RS256"],
         issuer=issuer,
-        options={"verify_aud": False},
+        options={
+            "require": ["exp", "iss", "sub", "client_id", "token_use"],
+            "verify_aud": False,
+        },
     )
     if claims.get("token_use") != "access":
         raise InvalidTokenError("Access token required")
@@ -81,7 +94,7 @@ def cognito_required(function):
             g.cognito_claims = validate_access_token(parts[1])
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 503
-        except (InvalidTokenError, requests.RequestException, ValueError):
+        except (InvalidTokenError, requests.RequestException, ValueError, TypeError):
             return jsonify({"error": "Invalid or expired access token"}), 401
         return function(*args, **kwargs)
 

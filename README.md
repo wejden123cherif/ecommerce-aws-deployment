@@ -615,12 +615,24 @@ COGNITO_SCOPES=openid email profile
 INTERNAL_SERVICE_TOKEN=server-only-internal-placeholder
 ```
 
+### Verified production OAuth issue
+
+The deployed HTTPS flow was tested against the configured Cognito domain and returned:
+
+```text
+error=invalid_request
+error_description=invalid_scope
+```
+
+The application is requesting `openid email profile`, but the Cognito App Client currently does not allow the requested scope, or the deployed `COGNITO_SCOPES` value does not match the App Client. In the Cognito console, open the App Client, enable the authorization-code grant with PKCE, add the `openid`, `email`, and `profile` scopes to the allowed scopes, and save. The `profile` scope is required for UserInfo to return `given_name` and `family_name`.
+
 ### Database migration
 
 On startup, the user service runs an additive PostgreSQL migration equivalent to:
 
 ```sql
 ALTER TABLE users ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS family_name VARCHAR(100);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_users_cognito_sub
 ON users (cognito_sub) WHERE cognito_sub IS NOT NULL;
 ```
