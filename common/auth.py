@@ -39,6 +39,12 @@ def _jwks(issuer, force_refresh=False):
 
 def validate_access_token(token):
     issuer, client_id = _config()
+    import logging
+    logging.getLogger(__name__).info(
+        "[validate_access_token] issuer_configured=%s client_id_configured=%s",
+        bool(issuer),
+        bool(client_id),
+    )
     if not issuer or not client_id:
         raise RuntimeError("Cognito authentication is not configured")
 
@@ -87,9 +93,19 @@ def cognito_required(function):
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         parts = auth_header.split()
+        current_app.logger.info(
+            "[cognito_required] path=%s authorization_header_present=%s",
+            request.path,
+            bool(auth_header),
+        )
         if not auth_header:
             return _auth_rejection("missing_authorization", "Authorization header is required", 401)
-        if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
+        bearer_valid = len(parts) == 2 and parts[0].lower() == "bearer" and bool(parts[1])
+        current_app.logger.info(
+            "[cognito_required] bearer_format_valid=%s",
+            bearer_valid,
+        )
+        if not bearer_valid:
             return _auth_rejection("malformed_bearer", "Use Authorization: Bearer <access token>", 401)
         try:
             g.cognito_access_token = parts[1]
@@ -127,6 +143,12 @@ def cognito_required(function):
             return _auth_rejection("jwks_unavailable", "Cognito signing keys are temporarily unavailable", 503)
         except (ValueError, TypeError):
             return _auth_rejection("invalid_token", "Cognito access token is invalid", 401)
+        current_app.logger.info(
+            "[cognito_required] jwt_valid=True sub_present=%s token_use=%s client_id_matches=%s",
+            bool(g.cognito_claims.get("sub")),
+            g.cognito_claims.get("token_use"),
+            g.cognito_claims.get("client_id") == os.getenv("COGNITO_CLIENT_ID"),
+        )
         return function(*args, **kwargs)
 
     return decorated

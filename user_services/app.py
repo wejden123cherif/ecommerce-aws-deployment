@@ -128,66 +128,88 @@ with app.app_context():
 @cognito_required
 def get_current_user():
     claims = g.cognito_claims
+    cognito_sub = claims["sub"]
+
+    # ── Safe debug log (no token values) ─────────────────────────────────────
+    current_app.logger.info(
+        "[/users/me] sub_present=%s cognito_domain_configured=%s",
+        bool(cognito_sub),
+        bool(os.getenv("COGNITO_DOMAIN")),
+    )
+
     cognito_domain = os.getenv("COGNITO_DOMAIN")
     if not cognito_domain:
-        current_app.logger.error("Cognito profile validation failed: configuration_missing")
+        current_app.logger.error("[/users/me] COGNITO_DOMAIN is not set — cannot call UserInfo")
         return jsonify({
             "error": "Cognito profile verification is not configured",
             "reason": "cognito_configuration_missing",
         }), 503
+
+    # ── Call Cognito UserInfo (best-effort) ───────────────────────────────────
+    profile = {}
+    profile_verified = False
     try:
         profile_response = requests.get(
             f"{cognito_domain.rstrip('/')}/oauth2/userInfo",
             headers={"Authorization": f"Bearer {g.cognito_access_token}"},
             timeout=5,
         )
-        if profile_response.status_code != 200:
+        current_app.logger.info(
+            "[/users/me] UserInfo status=%s", profile_response.status_code
+        )
+        if profile_response.status_code == 200:
+            try:
+                profile = profile_response.json()
+                profile_verified = True
+                current_app.logger.info(
+                    "[/users/me] UserInfo claims present: %s",
+                    sorted(profile.keys()),
+                )
+            except ValueError:
+                current_app.logger.warning("[/users/me] UserInfo returned non-JSON body")
+        else:
             current_app.logger.warning(
-                "Cognito profile validation failed: userinfo_rejected (status=%s)",
+                "[/users/me] UserInfo rejected: status=%s body=%s",
                 profile_response.status_code,
+                profile_response.text[:200],
             )
-            return jsonify({
-                "error": "Unable to verify Cognito profile",
-                "reason": "userinfo_rejected",
-            }), 401
-        try:
-            profile = profile_response.json()
-        except ValueError:
-            current_app.logger.warning("Cognito profile validation failed: invalid_userinfo_response")
-            return jsonify({
-                "error": "Cognito returned an unreadable profile response",
-                "reason": "invalid_userinfo_response",
-            }), 502
-    except requests.RequestException:
-        current_app.logger.warning("Cognito profile validation failed: userinfo_unavailable")
-        return jsonify({
-            "error": "Cognito profile service unavailable",
-            "reason": "userinfo_unavailable",
-        }), 503
+    except requests.RequestException as exc:
+        current_app.logger.warning("[/users/me] UserInfo request failed: %s", exc)
 
-    required_profile = ("email", "given_name", "family_name")
-    if (
-        any(not profile.get(attribute) for attribute in required_profile)
-        or profile.get("email_verified") is not True
-    ):
-        current_app.logger.warning("Cognito profile validation failed: required_profile_claim_missing")
-        return jsonify({
-            "error": "Cognito profile requires verified email, given name, and family name",
-            "reason": "required_profile_claim_missing",
-        }), 422
-    cognito_sub = claims["sub"]
-    user = User.query.filter_by(cognito_sub=cognito_sub).first()
-    email = profile.get("email") or f"{cognito_sub}@cognito.local"
-    given_name = profile.get("given_name") or profile.get("name") or profile.get("username") or email
+    current_app.logger.info(
+        "[/users/me] email_present=%s given_name_present=%s family_name_present=%s "
+        "email_verified=%s",
+        bool(profile.get("email")),
+        bool(profile.get("given_name")),
+        bool(profile.get("family_name")),
+        profile.get("email_verified"),
+    )
+
+    # ── Extract profile fields — all best-effort ─────────────────────────────
+    email = (
+        profile.get("email")
+        or f"{cognito_sub}@cognito.local"
+    )
+    given_name = (
+        profile.get("given_name")
+        or profile.get("name")
+        or profile.get("username")
+        or email.split("@")[0]
+    )
     family_name = profile.get("family_name") or ""
     name = f"{given_name} {family_name}".strip()
 
+    # ── Sync local user record ────────────────────────────────────────────────
+    user = User.query.filter_by(cognito_sub=cognito_sub).first()
+
     if not user:
+        # Try to link by email if a legacy record exists
         user = User.query.filter_by(email=email).first()
         if user:
             user.cognito_sub = cognito_sub
             user.name = name
-            user.family_name = family_name or user.family_name
+            if family_name:
+                user.family_name = family_name
         else:
             user = User(
                 name=name,
@@ -198,14 +220,15 @@ def get_current_user():
             db.session.add(user)
     else:
         user.name = name
-        user.family_name = family_name or user.family_name
+        if family_name:
+            user.family_name = family_name
         user.email = email
 
     db.session.commit()
 
     result = user.to_dict()
     result["identity_provider"] = "Amazon Cognito User Pool"
-    result["cognito_profile_verified"] = True
+    result["cognito_profile_verified"] = profile_verified
     return jsonify(result)
 
 
