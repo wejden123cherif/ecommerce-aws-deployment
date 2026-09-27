@@ -192,8 +192,7 @@ def get_current_user():
     )
     given_name = (
         profile.get("given_name")
-        or profile.get("name")
-        or profile.get("username")
+        or profile.get("family_name")
         or email.split("@")[0]
     )
     family_name = profile.get("family_name") or ""
