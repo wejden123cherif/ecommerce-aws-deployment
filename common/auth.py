@@ -176,3 +176,30 @@ def service_or_cognito_required(function):
         return cognito_required(function)(*args, **kwargs)
 
     return decorated
+
+
+def admin_required(function):
+    @wraps(function)
+    def decorated(*args, **kwargs):
+        # First ensure the user is authenticated via Cognito
+        return cognito_required(_admin_check_logic(function))(*args, **kwargs)
+    return decorated
+
+
+def _admin_check_logic(function):
+    @wraps(function)
+    def decorated(*args, **kwargs):
+        groups = g.cognito_claims.get("cognito:groups", [])
+        if not groups:
+            groups = []
+        is_admin = any(g.lower() in ["admin", "administrator", "admins"] for g in groups)
+        
+        # Fallback check for custom attribute if groups are not used
+        custom_role = g.cognito_claims.get("custom:role", "")
+        if custom_role and custom_role.lower() in ["admin", "administrator"]:
+            is_admin = True
+            
+        if not is_admin:
+            return _auth_rejection("insufficient_permissions", "Administrator access required", 403)
+        return function(*args, **kwargs)
+    return decorated

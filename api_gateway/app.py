@@ -3,12 +3,16 @@ from dotenv import load_dotenv
 import requests
 import os
 from flask_cors import CORS
-from common.auth import cognito_required
+from common.auth import cognito_required, admin_required
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+# Restrict CORS to known origins rather than wildcard '*'
+CORS(app, origins=[
+    "https://blue-bonus-79a1.cherifwejden7.workers.dev",
+    "http://localhost:5500"
+])
 PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL")
 ORDER_SERVICE_URL = os.getenv("ORDER_SERVICE_URL")
@@ -81,11 +85,13 @@ def product_stock(product_id):
     "/users",
     methods=["GET", "POST"]
 )
+@admin_required
 def users():
 
     return forward_request(
         f"{USER_SERVICE_URL}/users"
     )
+
 
 
 @app.route("/users/me", methods=["GET"])
@@ -97,6 +103,7 @@ def current_user():
     "/users/<int:user_id>",
     methods=["GET", "DELETE"]
 )
+@admin_required
 def user(user_id):
 
     return forward_request(

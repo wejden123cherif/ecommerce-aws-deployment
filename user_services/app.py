@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 import os
 import requests
-from common.auth import cognito_required
+from common.auth import cognito_required, admin_required
 load_dotenv()
 app=Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"]=os.getenv("DATABASE_URL")
@@ -65,6 +65,7 @@ def create_user():
         "user": user.to_dict()
     }), 201
 @app.route("/users", methods=["GET"])
+@admin_required
 def get_users():
 
     users = User.query.all()
@@ -74,6 +75,7 @@ def get_users():
         for user in users
     ])
 @app.route("/users/<int:user_id>", methods=["GET"])
+@admin_required
 def get_user(user_id):
 
     user = db.session.get(User, user_id)
@@ -85,7 +87,7 @@ def get_user(user_id):
 
     return jsonify(user.to_dict())
 @app.route("/users/<int:user_id>", methods=["DELETE"])
-@cognito_required
+@admin_required
 def delete_user(user_id):
 
     user = db.session.get(User, user_id)
