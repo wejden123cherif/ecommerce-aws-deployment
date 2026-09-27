@@ -81,6 +81,7 @@ function friendlyApiMessage(response, fallback) {
 }
 
 async function requestJson(path, options = {}) {
+    const accessTokenPresent = Boolean(Auth.accessToken());
     let response;
     try {
         response = await fetch(`${API_URL}${path}`, {
@@ -88,6 +89,13 @@ async function requestJson(path, options = {}) {
             headers: { ...authenticatedHeaders(), ...(options.headers || {}) },
         });
     } catch (error) {
+        if (path === "/users/me") {
+            console.error("GET /users/me diagnostic", {
+                accessTokenPresent,
+                status: "network_error",
+                response: null,
+            });
+        }
         throw new Error("We could not reach the dashboard service. Check your connection and try again.");
     }
 
@@ -98,7 +106,15 @@ async function requestJson(path, options = {}) {
         body = {};
     }
 
-    if (response.status === 401) {
+    if (path === "/users/me") {
+        console.info("GET /users/me diagnostic", {
+            accessTokenPresent,
+            status: response.status,
+            response: safeDiagnosticBody(body),
+        });
+    }
+
+    if (response.status === 401 && ["/users/me", "/orders"].includes(path)) {
         Auth.clearSession();
         const message = body.error || "Your session has expired. Please sign in again.";
         renderSignedOut(message);
@@ -109,6 +125,16 @@ async function requestJson(path, options = {}) {
         throw error;
     }
     return { response, body };
+}
+
+function safeDiagnosticBody(body) {
+    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+    const safeFields = ["error", "reason", "message", "detail", "status"];
+    return Object.fromEntries(
+        safeFields
+            .filter(key => Object.hasOwn(body, key))
+            .map(key => [key, body[key]])
+    );
 }
 
 function authenticatedHeaders() {

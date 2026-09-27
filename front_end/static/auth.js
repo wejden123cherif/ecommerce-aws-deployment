@@ -144,20 +144,16 @@ const Auth = (() => {
         });
         if (!response.ok) {
             const errorBody = await response.text();
-
-            console.error("Cognito token exchange failed:", {
-                status: response.status,
-                body: errorBody,
-            });
-
             clearCallbackParams();
 
             let message = "Cognito token exchange failed.";
+            let errorCategory = "unknown";
 
             try {
                 const parsed = JSON.parse(errorBody);
 
                 if (parsed.error || parsed.error_description) {
+                    errorCategory = parsed.error || "unknown";
                     message = `${parsed.error || "error"}: ${
                         parsed.error_description || "Unknown Cognito error"
                     }`;
@@ -165,6 +161,11 @@ const Auth = (() => {
             } catch {
                 // Keep generic message if Cognito response is not JSON.
             }
+
+            console.error("Cognito token exchange failed", {
+                status: response.status,
+                error: errorCategory,
+            });
 
             throw new Error(message);
         }
@@ -188,15 +189,6 @@ const Auth = (() => {
         }
         if (error === "invalid_request") return "Cognito rejected the sign-in request. Check the callback URL and client settings.";
         return "Cognito could not complete sign in. Please try again.";
-    }
-
-    async function safeErrorResponse(response) {
-        try {
-            const body = await response.clone().json();
-            return { error: body.error, description: body.error_description };
-        } catch (error) {
-            return { statusText: response.statusText };
-        }
     }
 
     function accessToken() {

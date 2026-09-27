@@ -1,4 +1,4 @@
-from flask import Flask,request,jsonify,g
+from flask import Flask,request,jsonify,g,current_app
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -130,7 +130,11 @@ def get_current_user():
     claims = g.cognito_claims
     cognito_domain = os.getenv("COGNITO_DOMAIN")
     if not cognito_domain:
-        return jsonify({"error": "Cognito profile verification is not configured"}), 503
+        current_app.logger.error("Cognito profile validation failed: configuration_missing")
+        return jsonify({
+            "error": "Cognito profile verification is not configured",
+            "reason": "cognito_configuration_missing",
+        }), 503
     try:
         profile_response = requests.get(
             f"{cognito_domain.rstrip('/')}/oauth2/userInfo",
@@ -138,18 +142,38 @@ def get_current_user():
             timeout=5,
         )
         if profile_response.status_code != 200:
-            return jsonify({"error": "Unable to verify Cognito profile"}), 401
-        profile = profile_response.json()
+            current_app.logger.warning(
+                "Cognito profile validation failed: userinfo_rejected (status=%s)",
+                profile_response.status_code,
+            )
+            return jsonify({
+                "error": "Unable to verify Cognito profile",
+                "reason": "userinfo_rejected",
+            }), 401
+        try:
+            profile = profile_response.json()
+        except ValueError:
+            current_app.logger.warning("Cognito profile validation failed: invalid_userinfo_response")
+            return jsonify({
+                "error": "Cognito returned an unreadable profile response",
+                "reason": "invalid_userinfo_response",
+            }), 502
     except requests.RequestException:
-        return jsonify({"error": "Cognito profile service unavailable"}), 503
+        current_app.logger.warning("Cognito profile validation failed: userinfo_unavailable")
+        return jsonify({
+            "error": "Cognito profile service unavailable",
+            "reason": "userinfo_unavailable",
+        }), 503
 
     required_profile = ("email", "given_name", "family_name")
     if (
         any(not profile.get(attribute) for attribute in required_profile)
         or profile.get("email_verified") is not True
     ):
+        current_app.logger.warning("Cognito profile validation failed: required_profile_claim_missing")
         return jsonify({
-            "error": "Cognito profile requires verified email, given name, and family name"
+            "error": "Cognito profile requires verified email, given name, and family name",
+            "reason": "required_profile_claim_missing",
         }), 422
     cognito_sub = claims["sub"]
     user = User.query.filter_by(cognito_sub=cognito_sub).first()

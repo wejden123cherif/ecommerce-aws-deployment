@@ -4,7 +4,7 @@ from threading import Lock
 
 import jwt
 import requests
-from flask import g, jsonify, request
+from flask import current_app, g, jsonify, request
 from jwt import InvalidTokenError
 
 
@@ -45,10 +45,10 @@ def validate_access_token(token):
     try:
         header = jwt.get_unverified_header(token)
     except jwt.InvalidTokenError as error:
-        raise InvalidTokenError("Malformed JWT") from error
+        raise InvalidTokenError("malformed_jwt") from error
 
     if header.get("alg") != "RS256" or not header.get("kid"):
-        raise InvalidTokenError("Unexpected signing algorithm")
+        raise InvalidTokenError("unexpected_algorithm")
 
     key_data = next(
         (key for key in _jwks(issuer) if key.get("kid") == header["kid"]),
@@ -60,7 +60,7 @@ def validate_access_token(token):
             None,
         )
     if not key_data:
-        raise InvalidTokenError("Signing key not found")
+        raise InvalidTokenError("signing_key_not_found")
 
     signing_key = jwt.algorithms.RSAAlgorithm.from_jwk(key_data)
     claims = jwt.decode(
@@ -69,16 +69,16 @@ def validate_access_token(token):
         algorithms=["RS256"],
         issuer=issuer,
         options={
-            "require": ["exp", "iss", "sub", "client_id", "token_use"],
+            "require": ["exp", "iss", "client_id", "token_use"],
             "verify_aud": False,
         },
     )
     if claims.get("token_use") != "access":
-        raise InvalidTokenError("Access token required")
+        raise InvalidTokenError("wrong_token_use")
     if claims.get("client_id") != client_id:
-        raise InvalidTokenError("Unexpected Cognito client")
+        raise InvalidTokenError("client_id_mismatch")
     if not claims.get("sub"):
-        raise InvalidTokenError("Token subject is required")
+        raise InvalidTokenError("missing_sub")
     return claims
 
 
@@ -87,56 +87,54 @@ def cognito_required(function):
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         parts = auth_header.split()
-        if len(parts) != 2 or parts[0] != "Bearer" or not parts[1]:
-            return jsonify({"error": "Valid Bearer access token required"}), 401
+        if not auth_header:
+            return _auth_rejection("missing_authorization", "Authorization header is required", 401)
+        if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
+            return _auth_rejection("malformed_bearer", "Use Authorization: Bearer <access token>", 401)
         try:
             g.cognito_access_token = parts[1]
             g.cognito_claims = validate_access_token(parts[1])
         except RuntimeError as error:
-            return jsonify({"error": str(error)}), 503
+            return _auth_rejection("cognito_configuration_missing", str(error), 503)
         except jwt.ExpiredSignatureError:
-            return jsonify({
-                "error": "Cognito access token has expired",
-                "reason": "token_expired",
-            }), 401
+            return _auth_rejection("token_expired", "Cognito access token has expired", 401)
         except jwt.InvalidIssuerError:
-            return jsonify({
-                "error": "Cognito access token issuer does not match this service",
-                "reason": "issuer_mismatch",
-            }), 401
+            return _auth_rejection("issuer_mismatch", "Cognito access token issuer does not match this service", 401)
         except jwt.InvalidSignatureError:
-            return jsonify({
-                "error": "Cognito access token signature is invalid",
-                "reason": "invalid_signature",
-            }), 401
+            return _auth_rejection("invalid_signature", "Cognito access token signature is invalid", 401)
         except InvalidTokenError as error:
-            if str(error) == "Unexpected Cognito client":
-                return jsonify({
-                    "error": "Access token belongs to a different Cognito App Client",
-                    "reason": "client_id_mismatch",
-                }), 401
-            if str(error) == "Access token required":
-                return jsonify({
-                    "error": "Cognito access token required",
-                    "reason": "wrong_token_use",
-                }), 401
-            return jsonify({
-                "error": "Cognito access token is invalid",
-                "reason": "invalid_token",
-            }), 401
+            reason = str(error)
+            if reason not in {
+                "signing_key_not_found",
+                "wrong_token_use",
+                "client_id_mismatch",
+                "missing_sub",
+                "malformed_jwt",
+                "unexpected_algorithm",
+            }:
+                reason = "invalid_token"
+            messages = {
+                "signing_key_not_found": "Cognito signing key was not found",
+                "wrong_token_use": "Cognito access token required",
+                "client_id_mismatch": "Access token belongs to a different Cognito App Client",
+                "missing_sub": "Cognito token subject is missing",
+                "malformed_jwt": "Cognito access token is malformed",
+                "unexpected_algorithm": "Cognito token signing algorithm is invalid",
+                "invalid_token": "Cognito access token is invalid",
+            }
+            return _auth_rejection(reason, messages[reason], 401)
         except requests.RequestException:
-            return jsonify({
-                "error": "Cognito signing keys are temporarily unavailable",
-                "reason": "jwks_unavailable",
-            }), 503
+            return _auth_rejection("jwks_unavailable", "Cognito signing keys are temporarily unavailable", 503)
         except (ValueError, TypeError):
-            return jsonify({
-                "error": "Cognito access token is invalid",
-                "reason": "invalid_token",
-            }), 401
+            return _auth_rejection("invalid_token", "Cognito access token is invalid", 401)
         return function(*args, **kwargs)
 
     return decorated
+
+
+def _auth_rejection(reason, message, status):
+    current_app.logger.warning("Cognito authentication rejected: %s", reason)
+    return jsonify({"error": message, "reason": reason}), status
 
 
 def service_or_cognito_required(function):
