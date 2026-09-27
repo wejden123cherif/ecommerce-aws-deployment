@@ -86,9 +86,6 @@ const Auth = (() => {
 
         const verifier = randomString();
         const state = randomString();
-        sessionStorage.setItem(VERIFIER_KEY, verifier);
-        sessionStorage.setItem(STATE_KEY, state);
-
         const challengeValue = await challenge(verifier);
         const authorizeUrl = new URL("/oauth2/authorize", config.domain);
         authorizeUrl.searchParams.set("response_type", "code");
@@ -99,7 +96,8 @@ const Auth = (() => {
         authorizeUrl.searchParams.set("code_challenge", challengeValue);
         authorizeUrl.searchParams.set("code_challenge_method", "S256");
 
-        console.log("Authorization URL:", authorizeUrl.toString());
+        sessionStorage.setItem(VERIFIER_KEY, verifier);
+        sessionStorage.setItem(STATE_KEY, state);
         window.location.assign(authorizeUrl.toString());
     }
 
@@ -207,12 +205,16 @@ const Auth = (() => {
 
     function clearSession() {
         sessionStorage.removeItem(TOKEN_KEY);
+    }
+
+    function clearOAuthTransaction() {
         sessionStorage.removeItem(STATE_KEY);
         sessionStorage.removeItem(VERIFIER_KEY);
     }
 
     function logout() {
         clearSession();
+        clearOAuthTransaction();
         if (config && config.domain && config.clientId && config.logoutUri) {
             const params = new URLSearchParams({
                 client_id: config.clientId,
