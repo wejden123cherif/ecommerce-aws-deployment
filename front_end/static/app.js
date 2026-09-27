@@ -62,8 +62,7 @@ function renderSignedIn(user) {
     const initial = displayName.trim().charAt(0).toUpperCase() || "M";
     elements.authCard.hidden = true;
     elements.profileSection.hidden = false;
-    const familyName = user.family_name ? ` · Family name: ${user.family_name}` : "";
-    elements.currentUser.textContent = `${displayName} · ${user.email}${familyName}`;
+    elements.currentUser.textContent = `${displayName} · ${user.email}`;
     elements.profileProof.textContent = user.cognito_profile_verified
         ? "Identity verified by Amazon Cognito"
         : "Signed in with Amazon Cognito";
