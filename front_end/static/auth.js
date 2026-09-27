@@ -145,12 +145,30 @@ const Auth = (() => {
             }),
         });
         if (!response.ok) {
-            console.warn("Cognito token exchange failed", {
+            const errorBody = await response.text();
+
+            console.error("Cognito token exchange failed:", {
                 status: response.status,
-                error: await safeErrorResponse(response),
+                body: errorBody,
             });
+
             clearCallbackParams();
-            throw new Error("Cognito could not complete sign in. Check the callback URL, client, scopes, and PKCE settings.");
+
+            let message = "Cognito token exchange failed.";
+
+            try {
+                const parsed = JSON.parse(errorBody);
+
+                if (parsed.error || parsed.error_description) {
+                    message = `${parsed.error || "error"}: ${
+                        parsed.error_description || "Unknown Cognito error"
+                    }`;
+                }
+            } catch {
+                // Keep generic message if Cognito response is not JSON.
+            }
+
+            throw new Error(message);
         }
         const tokens = await response.json();
         if (!tokens.access_token) {
