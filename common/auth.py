@@ -94,8 +94,46 @@ def cognito_required(function):
             g.cognito_claims = validate_access_token(parts[1])
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 503
-        except (InvalidTokenError, requests.RequestException, ValueError, TypeError):
-            return jsonify({"error": "Invalid or expired access token"}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({
+                "error": "Cognito access token has expired",
+                "reason": "token_expired",
+            }), 401
+        except jwt.InvalidIssuerError:
+            return jsonify({
+                "error": "Cognito access token issuer does not match this service",
+                "reason": "issuer_mismatch",
+            }), 401
+        except jwt.InvalidSignatureError:
+            return jsonify({
+                "error": "Cognito access token signature is invalid",
+                "reason": "invalid_signature",
+            }), 401
+        except InvalidTokenError as error:
+            if str(error) == "Unexpected Cognito client":
+                return jsonify({
+                    "error": "Access token belongs to a different Cognito App Client",
+                    "reason": "client_id_mismatch",
+                }), 401
+            if str(error) == "Access token required":
+                return jsonify({
+                    "error": "Cognito access token required",
+                    "reason": "wrong_token_use",
+                }), 401
+            return jsonify({
+                "error": "Cognito access token is invalid",
+                "reason": "invalid_token",
+            }), 401
+        except requests.RequestException:
+            return jsonify({
+                "error": "Cognito signing keys are temporarily unavailable",
+                "reason": "jwks_unavailable",
+            }), 503
+        except (ValueError, TypeError):
+            return jsonify({
+                "error": "Cognito access token is invalid",
+                "reason": "invalid_token",
+            }), 401
         return function(*args, **kwargs)
 
     return decorated

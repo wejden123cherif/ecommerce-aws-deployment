@@ -100,9 +100,13 @@ async function requestJson(path, options = {}) {
 
     if (response.status === 401) {
         Auth.clearSession();
-        renderSignedOut("Your session has expired. Sign in again to view your profile and orders.");
-        showNotification("Your session expired. Please sign in again.", "warning");
-        throw new Error("AUTHENTICATION_EXPIRED");
+        const message = body.error || "Your session has expired. Please sign in again.";
+        renderSignedOut(message);
+        showNotification(message, "warning");
+        const error = new Error(message);
+        error.status = response.status;
+        error.reason = body.reason;
+        throw error;
     }
     return { response, body };
 }
@@ -191,7 +195,12 @@ async function loadUsers() {
 
 async function loadCurrentUser() {
     const { response, body } = await requestJson("/users/me");
-    if (!response.ok) throw new Error(friendlyApiMessage(response, "Your profile could not be loaded."));
+    if (!response.ok) {
+        const error = new Error(body.error || friendlyApiMessage(response, "Your profile could not be loaded."));
+        error.status = response.status;
+        error.reason = body.reason;
+        throw error;
+    }
     renderSignedIn(body);
 }
 
@@ -269,9 +278,30 @@ async function initialize() {
         await loadOrders();
         showNotification("You are signed in and ready to go.", "success");
     } catch (error) {
-        Auth.clearSession();
-        renderSignedOut("We could not verify your session. Please sign in again.");
-        showNotification("We could not verify your session. Please sign in again.", "error");
+        if (error.status === 401) {
+            Auth.clearSession();
+            renderSignedOut(error.message);
+            showNotification(error.message, "warning");
+            console.warn("Backend rejected the Cognito access token", {
+                reason: error.reason || "unauthenticated",
+                status: error.status,
+            });
+            return;
+        }
+
+        elements.authCard.hidden = true;
+        elements.profileSection.hidden = false;
+        elements.currentUser.textContent = "Your profile is temporarily unavailable.";
+        elements.profileProof.textContent = "Your access token is still present; profile verification did not complete.";
+        elements.loginButton.hidden = true;
+        elements.logoutButton.hidden = false;
+        setAuthStatus("Profile unavailable", "loading");
+        showNotification(error.message || "We could not load your profile. Please try again.", "error");
+        console.error("Cognito profile request failed", {
+            status: error.status || "network_error",
+            reason: error.reason || "profile_request_failed",
+            message: error.message,
+        });
     }
 }
 
