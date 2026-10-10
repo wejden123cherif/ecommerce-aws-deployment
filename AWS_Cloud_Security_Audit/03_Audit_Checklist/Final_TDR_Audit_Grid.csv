@@ -1,0 +1,8 @@
+ID,Criterion,Audit question,Method,Expected evidence,Result,Classification,Evidence ref.
+G-01,A.5.23,Are responsibilities defined?,T-01 — Documentary grid,Approved scope / governance documentation,PASS,Compliant,EV-001
+G-02,A.5.15,Are rights limited and strong authentication enabled?,T-02 — Manual configuration review + Prowler + ScoutSuite,Cognito/IAM/STS configuration and scanner evidence,PARTIAL,Minor nonconformity,EV-002
+G-03,A.8.9,Is storage non-public and encrypted?,T-03 — Manual storage review + Prowler + ScoutSuite,RDS/S3/Secrets Manager/EBS evidence,PARTIAL,Major nonconformity,EV-003
+G-04,A.8.9,Are network rules restrictive?,T-04 — Security-group/VPC review + Prowler + ScoutSuite,Security-group/VPC/NACL evidence,PARTIAL,Major nonconformity,EV-004
+G-05,A.8.9,Is logging enabled?,T-05 — CloudTrail/CloudWatch/SNS review + scanners,Trail/log/metric/alarm/notification evidence,PASS WITH OBSERVATIONS,Compliant with observations,EV-005
+G-06,A.8.9,Does the scanner run and produce a report?,T-06 — Prowler 5.44.0 + ScoutSuite,Original scanner reports and screenshots,PASS,Compliant,EV-006
+G-07,A.8.9,Are the limits of the lab environment documented?,T-07 — Documentary and retained permission/identity evidence review,Assumed-role/AccessDenied captures; scanner errors; qualified session narratives,COMPLETED,Compliant — limitations documented,EV-007

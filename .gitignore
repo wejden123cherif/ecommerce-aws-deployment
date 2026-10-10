@@ -1,27 +1,34 @@
-# Environment variables
+# Python virtual environments
+venv/
+.venv/
+prowler-venv/
+scoutsuite-venv/
+
+# AWS credentials
+.aws/
+credentials
+*.pem
+*.key
+
+# Environment/secrets
 .env
-*.env
+.env.*
+secrets.*
+*.secret
 
 # Python
 __pycache__/
-*.py[cod]
-*.pyo
+*.pyc
 
-# Virtual environment
-venv/
-.venv/
-env/
-
-# IDE
+# Editors / OS
 .vscode/
 .idea/
-
-# Flask
-instance/
-
-# Logs
-*.log
-
-# OS
 .DS_Store
 Thumbs.db
+
+# Temporary audit renders
+*_render/
+*_contact.jpg
+*_contact.png
+crop*.png
+

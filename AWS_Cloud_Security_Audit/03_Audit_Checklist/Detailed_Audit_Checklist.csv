@@ -1,0 +1,45 @@
+Check ID,Test,Control,Verification point,Final status,Evidence,Final disposition
+C-01,T-01,A.5.23,Audit scope and responsibilities documented,YES,EV-001,Compliant
+C-02,T-01,A.5.23,AWS Academy Learner Lab target explicitly identified,YES,EV-001,Compliant
+C-03,T-01,A.5.23,Provider/lab responsibility boundaries documented,YES,EV-001;EV-007,Compliant
+C-04,T-02,A.5.15,AWS access path identified as temporary STS assumed role,YES,EV-002;EV-007,Compliant with lab context
+C-05,T-02,A.5.15,Cognito application authentication verified,YES,EV-002,Compliant
+C-06,T-02,A.5.15,Cognito MFA enforcement checked,YES,EV-002,Minor nonconformity — MFA not enforced
+C-07,T-02,A.5.15,Administrative authorization/group model reviewed,YES,EV-002,Compliant with observations
+C-08,T-02,A.5.15,Prowler/ScoutSuite IAM observations triaged,YES,EV-002;EV-006,Lab-managed and application-relevant items separated
+C-09,T-03,A.8.9,RDS storage encryption checked,YES,EV-003,Compliant — encrypted with aws/rds
+C-10,T-03,A.8.9,RDS private network placement reviewed,YES,EV-003;EV-004,Compliant
+C-11,T-03,A.8.9,CloudTrail S3 bucket public access checked,YES,EV-003,Compliant — bucket-level Block Public Access enabled
+C-12,T-03,A.8.9,CloudTrail S3 bucket encryption checked,YES,EV-003,Compliant — SSE-S3
+C-13,T-03,A.8.9,Secrets Manager use for RDS master credentials checked,YES,EV-003,Compliant
+C-14,T-03,A.8.9,EC2 EBS encryption assessed,YES,EV-003;EV-006,Major nonconformity — scanners identify unencrypted EBS volume
+C-15,T-03,A.8.9,EBS encryption-by-default assessed,YES,EV-006,Observation supporting storage hardening gap
+C-16,T-03,A.8.9,S3 account-level Block Public Access assessed,YES,EV-003;EV-006,Observation — account-wide guardrail absent while audited bucket remains protected
+C-17,T-04,A.8.9,ALB security-group inbound rules reviewed,YES,EV-004,Observed TCP 80/443 from 0.0.0.0/0
+C-18,T-04,A.8.9,EC2 application ports restricted to ALB security group,YES,EV-004,Compliant for ports 5000/5500
+C-19,T-04,A.8.9,EC2 SSH exposure assessed,YES,EV-004;EV-006,Major nonconformity — TCP/22 open to 0.0.0.0/0
+C-20,T-04,A.8.9,RDS PostgreSQL rule reviewed,YES,EV-004,Compliant — TCP/5432 through linked EC2/RDS security groups
+C-21,T-04,A.8.9,Additional RDS TCP/5543 rule reviewed,YES,EV-004,Observation — potential stale/unused rule
+C-22,T-04,A.8.9,NACL posture reviewed with ScoutSuite,YES,EV-006,Observation — permissive default NACL behavior requires SG defense-in-depth
+C-23,T-04,A.8.9,VPC endpoint trust-boundary scanner result triaged,YES,EV-006,Not raised as confirmed nonconformity because endpoint policy was not independently validated
+C-24,T-05,A.8.9,CloudTrail trail logging state verified,YES,EV-005,Compliant — logging active
+C-25,T-05,A.8.9,CloudTrail S3 log delivery verified,YES,EV-005,Compliant
+C-26,T-05,A.8.9,CloudTrail multi-region state checked,YES,EV-005,Compliant — multi-region enabled
+C-27,T-05,A.8.9,CloudTrail log-file validation checked,YES,EV-005;EV-006,Observation — disabled
+C-28,T-05,A.8.9,CloudWatch log groups reviewed,YES,EV-005,Compliant with retention observation
+C-29,T-05,A.8.9,CloudWatch EC2/ALB metrics reviewed,YES,EV-005,Compliant
+C-30,T-05,A.8.9,CloudWatch alarm and SNS action verified,YES,EV-005,Compliant
+C-31,T-05,A.8.9,SNS subscription confirmation verified,YES,EV-005,Compliant
+C-32,T-05,A.8.9,CloudTrail-to-CloudWatch integration attempt documented,YES,EV-007,Lab limitation — iam:AttachRolePolicy denied
+C-33,T-06,A.8.9,Prowler authenticated and executed,YES,EV-006,Compliant
+C-34,T-06,A.8.9,Prowler raw HTML/CSV/OCSF reports generated,YES,EV-006,Compliant
+C-35,T-06,A.8.9,Prowler findings triaged and deduplicated,YES,EV-006,Compliant
+C-36,T-06,A.8.9,ScoutSuite executed and report generated,YES,EV-006,Compliant
+C-37,T-06,A.8.9,ScoutSuite dashboard/service findings captured,YES,EV-006,Compliant
+C-38,T-07,A.8.9,Vocareum assumed-role limitation documented,YES,EV-007,Compliant — limitation documented
+C-39,T-07,A.8.9,IAM CreateUser AccessDenied captured,YES,EV-007,Compliant — limitation documented
+C-40,T-07,A.8.9,CloudTrail console AccessDenied captured,YES,EV-007,Compliant — limitation documented
+C-41,T-07,A.8.9,CloudTrail/CloudWatch AttachRolePolicy denial captured,YES,EV-007,Compliant — limitation documented
+C-42,T-07,A.8.9,RDS provider capacity limitation documented,YES,EV-007;Session 2 narrative,Documentation complete — original capacity-error capture absent
+C-43,T-07,A.8.9,Vocareum-managed EC2 StartInstances behavior documented,YES,EV-007;Session 2 narrative,Documentation complete — original event export absent; exact platform workflow unproven
+C-44,T-07,A.8.9,Scanner visibility/access limitations documented,YES,EV-006;EV-007,Compliant — limitation documented

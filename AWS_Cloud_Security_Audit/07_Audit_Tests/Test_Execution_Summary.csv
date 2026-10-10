@@ -1,0 +1,8 @@
+Test,Control,Result,Classification,Primary evidence,Main conclusion
+T-01,A.5.23,PASS,Compliant,EV-001,Responsibilities scope and cloud-use boundaries are documented
+T-02,A.5.15,PARTIAL,Minor nonconformity,EV-002,Cognito MFA is not enforced; Learner Lab IAM restrictions are separated from application responsibility
+T-03,A.8.9,PARTIAL,Major nonconformity,EV-003,Core RDS/S3 controls are protected but EC2 EBS storage is reported unencrypted
+T-04,A.8.9,PARTIAL,Major nonconformity,EV-004,SSH TCP/22 is exposed to 0.0.0.0/0; application/RDS segmentation otherwise exists
+T-05,A.8.9,PASS WITH OBSERVATIONS,Compliant with observations,EV-005,CloudTrail CloudWatch metrics alarm and SNS notification are operational; hardening gaps remain
+T-06,A.8.9,PASS,Compliant,EV-006,Prowler and ScoutSuite both executed and produced usable reports
+T-07,A.8.9,COMPLETED,Compliant — limitations documented,EV-007,Assumed-role and explicit denials directly evidenced; provider/restart/tooling incidents retained as qualified secondary narratives

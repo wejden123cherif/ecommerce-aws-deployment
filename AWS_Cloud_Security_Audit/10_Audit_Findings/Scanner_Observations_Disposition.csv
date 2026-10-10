@@ -1,0 +1,11 @@
+Scanner observation,Tool,Final disposition,Reason
+Vocareum role has AdministratorAccess,Prowler,Lab limitation / not project finding,AWS Academy/Vocareum-managed access model is outside direct team administration
+AdministratorAccess managed policy present,Prowler,Correlated with lab IAM context,Not counted as a separate application vulnerability without independent attachment/control evidence
+Lambda role allows iam:AttachRolePolicy and iam:PutRolePolicy,Prowler,Not raised as application finding,Role appears lab/generated and application ownership was not established
+IAM confused-deputy findings for EKS/EMR/Redshift roles,Prowler,Out of application scope / account-level observation,Those services are not part of the documented e-commerce workload
+Secrets Manager restrictive resource policy check,Prowler,Inconclusive and recorded as scanner visibility limitation,Prowler explicitly states the resource policy may be absent OR access may be denied to the voclabs role
+VPC endpoint trust-boundary finding,Prowler,Scanner observation only,Endpoint policy was not independently validated during the audit period
+IAM password-policy findings,ScoutSuite,Account-level observation / limited applicability,Audited AWS administration uses temporary STS assumed-role access and IAM CreateUser is denied in the Learner Lab
+CloudTrail not integrated with CloudWatch,ScoutSuite,Lab limitation plus T-05 observation,Integration attempt was blocked by iam:AttachRolePolicy AccessDenied
+CloudTrail not KMS-CMK encrypted,ScoutSuite,Hardening observation,S3 delivery is encrypted with SSE-S3; absence of CMK is not equivalent to unencrypted logs
+CloudTrail data logging not covering all resources,ScoutSuite,Hardening observation,Management logging is operational but data-event coverage can be broadened
