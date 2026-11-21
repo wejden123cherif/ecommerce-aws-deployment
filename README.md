@@ -1,655 +1,139 @@
-# E-Commerce Microservices
+# E-commerce Microservices and AWS Security Audit
 
-A complete **E-Commerce Microservices application** built using **Python, Flask, PostgreSQL, REST APIs, API Gateway, and a web frontend**.
+A collaborative e-commerce application built from Flask services for users, products, and orders, with a browser frontend, an API gateway, and PostgreSQL. The project was deployed in an AWS Academy lab and extended with monitored security experiments and an orchestrated incident-response workflow. The repository also documents the academic cloud security assessment.
 
-The project demonstrates how independent microservices communicate with each other and how an API Gateway provides a single entry point for clients.
+## Architecture
 
----
+```mermaid
+flowchart LR
+    Browser[Browser]
+    Frontend[Flask frontend<br/>port 5500]
+    Gateway[Flask API gateway<br/>port 5000]
+    Cognito[Amazon Cognito<br/>Authorization Code + PKCE]
+    User[User service<br/>port 5002]
+    Product[Product service<br/>port 5001]
+    Order[Order service<br/>port 5003]
+    Postgres[(PostgreSQL<br/>three logical service databases)]
 
-## 🚀 Features
-
-* User Microservice
-* Product Microservice
-* Order Microservice
-* API Gateway
-* PostgreSQL database
-* RESTful APIs
-* Amazon Cognito authentication with Authorization Code + PKCE
-* Product stock management
-* Order creation and validation
-* Microservice-to-microservice communication
-* Frontend dashboard
-* CORS support
-* Environment-based configuration
-* Git/GitHub ready
-
----
-
-## 🏗️ Architecture
-
-```text
-                         Browser
-                            |
-                            v
-                    Frontend :5500
-                            |
-                            v
-                  API Gateway :5000
-                     /      |      \
-                    /       |       \
-                   v        v        v
-             User :5002  Product :5001  Order :5003
-                 |           |            |
-                 v           v            v
-             PostgreSQL  PostgreSQL   PostgreSQL
+    Browser --> Frontend
+    Browser <-->|sign-in| Cognito
+    Frontend -->|access-token API requests| Gateway
+    Gateway --> User
+    Gateway --> Product
+    Gateway --> Order
+    User --> Postgres
+    Product --> Postgres
+    Order --> Postgres
+    Order -->|verify user and product; check stock| User
+    Order --> Product
 ```
 
-### Order Flow
+The local Compose stack runs one PostgreSQL container and initializes separate databases for the services. Protected gateway and service routes validate Cognito access tokens; the order service checks user and product information before creating an order and adjusting stock.
 
-```text
-Client
-  |
-  v
-API Gateway
-  |
-  v
-Order Service
-  |
-  +----> User Service
-  |          |
-  |          v
-  |      Verify User
-  |
-  +----> Product Service
-             |
-             v
-         Verify Product
-             |
-             v
-         Check Stock
-             |
-             v
-        Reduce Stock
-             |
-             v
-        Create Order
+### AWS lab deployment and security operations
+
+The project report documents a deployed lab environment with the containerized application on Amazon EC2, an Application Load Balancer (ALB), private Amazon RDS for PostgreSQL, Amazon Cognito, and a Cloudflare Worker HTTPS entry point. The ALB routed storefront and API traffic to separate application target groups. The report identifies the Worker-to-ALB origin hop as HTTP, a limitation that should be addressed before any production use.
+
+```mermaid
+flowchart LR
+    Client[Browser]
+    Edge[Cloudflare Worker<br/>HTTPS entry]
+    WAF[AWS WAF]
+    ALB[Application Load Balancer]
+    App[Amazon EC2<br/>Docker Compose services]
+    DB[(Amazon RDS<br/>PostgreSQL)]
+    Cognito[Amazon Cognito]
+    CT[CloudTrail]
+    CW[CloudWatch<br/>WAF and infrastructure signals]
+    EB[Amazon EventBridge]
+    Detect[AWS Lambda<br/>detection and correlation]
+    S3[Amazon S3<br/>incident evidence]
+    SNS[Amazon SNS<br/>notifications]
+    SF[Step Functions]
+    SSM[Systems Manager Automation<br/>containment runbook]
+    Test[Approved disposable<br/>test EC2]
+
+    Client -->|HTTPS| Edge --> WAF --> ALB
+    ALB -->|storefront and API routes| App --> DB
+    Client -. sign-in .-> Cognito
+    App -. authentication .-> Cognito
+    WAF --> CW
+    App -. operational metrics .-> CW
+    CT --> EB --> Detect
+    CW --> EB
+    Detect --> S3
+    Detect --> SNS
+    Detect --> SF --> SSM --> Test
+    SF --> SNS
 ```
 
----
+The report describes two controlled signals: a WAF test rule counted matching HTTP requests, and CloudTrail/EventBridge detected a test security-group ingress change. A Lambda correlator joined relevant signals within a 15-minute window, stored incident records in S3, sent SNS alerts, and started a Step Functions workflow. The workflow validated the incident and restricted its target to an approved disposable test instance before invoking Systems Manager Automation. It polled for the runbook's terminal status and reported the outcome. The production application host was excluded from containment tests.
 
-## 🛠️ Technologies
+The report records successful laboratory verification of the individual detections and the integrated response path. This is a team-reported academic lab result, not an independent assessment, production deployment claim, or evidence that a current AWS environment remains active. Detection signals were simulated and do not by themselves establish compromise. The report also calls out production hardening needs, including narrower IAM permissions, stronger event deduplication and attribution, approval safeguards for disruptive actions, and tested recovery procedures.
 
-### Backend
+## Features
 
-* Python
-* Flask
-* Flask-SQLAlchemy
-* REST API
-* Requests
+- User, product, and order REST services behind a single API gateway.
+- Cognito sign-in using Authorization Code flow with PKCE.
+- Access-token validation and user-scoped order access.
+- Product stock management and order validation.
+- PostgreSQL persistence with service-specific databases.
+- Docker Compose for local development.
+- A documented AWS cloud security assessment using Prowler and ScoutSuite.
 
-### Database
+## Technology
 
-* PostgreSQL
-* SQLAlchemy ORM
+| Area | Stack |
+| --- | --- |
+| Services and gateway | Python, Flask, Flask-SQLAlchemy, REST APIs |
+| Data | PostgreSQL, SQLAlchemy |
+| Identity | Amazon Cognito, OAuth 2.0 Authorization Code flow with PKCE |
+| Frontend | Flask templates, HTML, CSS, JavaScript |
+| Local and deployed application | Docker, Docker Compose, Amazon EC2, Application Load Balancer, Amazon RDS for PostgreSQL |
+| Identity and edge | Amazon Cognito, Cloudflare Worker, AWS WAF |
+| Detection and response lab | CloudTrail, CloudWatch, EventBridge, AWS Lambda, Amazon S3, Amazon SNS, Step Functions, Systems Manager Automation |
+| Assessment | Prowler, ScoutSuite, AWS CloudTrail and CloudWatch evidence |
 
-### Authentication
+## Run locally
 
-* Verified Cognito access tokens
-
-### Frontend
-
-* HTML
-* CSS
-* JavaScript
-* Flask
-
-### Development Tools
-
-* Git
-* GitHub
-* PowerShell
-* VS Code
-
----
-
-## 📁 Project Structure
-
-```text
-ecommerce-microservices/
-│
-├── api_gateway/
-│   ├── app.py
-│   └── .env
-│
-├── user_services/
-│   ├── app.py
-│   └── .env
-│
-├── product_services/
-│   ├── app.py
-│   └── .env
-│
-├── order_service/
-│   ├── app.py
-│   └── .env
-│
-├── front_end/
-│   ├── app.py
-│   │
-│   ├── templates/
-│   │   └── index.html
-│   │
-│   └── static/
-│       ├── app.js
-│       └── styles.css
-│
-├── .gitignore
-├── README.md
-└── requirements.txt
-```
-
-> `.env` files contain secrets and should not be committed to GitHub.
-
----
-
-## ⚙️ Installation
-
-### 1. Clone the repository
+Prerequisites: Docker with the Compose plugin and a Cognito test User Pool/App Client configured for the local callback URL. The application can start without valid Cognito settings, but sign-in and protected requests require a correctly configured pool and client.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ecommerce-microservices.git
+cp .env.example .env
+# Edit .env with local-only database values and your Cognito test-client settings.
+docker compose up --build
 ```
+
+Open the frontend at `http://localhost:5500`. The API gateway listens at `http://localhost:5000`; its health endpoint is `http://localhost:5000/health`.
+
+Stop the services while keeping the local database volume:
 
 ```bash
-cd ecommerce-microservices
+docker compose down
 ```
 
-### 2. Install dependencies
+Do not commit `.env` or put real credentials in `.env.example`. The example file contains placeholders only.
 
-```bash
-pip install -r requirements.txt
-```
+## API surface
 
-If `requirements.txt` is not available:
+The gateway exposes `/health` and routes user, product, and order requests to their corresponding services. The services also define health endpoints. See the service route handlers for the current request and response schemas.
 
-```bash
-pip install Flask Flask-SQLAlchemy psycopg2-binary python-dotenv requests flask-cors
-```
+There is no automated application test suite in this checkout. The health endpoint is a basic startup smoke check, not a functional test of authentication, ordering, or AWS resources.
 
----
+## Security notes
 
-## 🗄️ PostgreSQL Setup
+- The browser uses Cognito PKCE and holds the short-lived access token in `sessionStorage`. Browser storage remains accessible to same-origin JavaScript, so protect the frontend against cross-site scripting.
+- Protected API and service routes validate Cognito access tokens and use an internal service token for selected service-to-service calls. Configure local values in the ignored `.env` file and use a managed secret store for deployed environments.
+- The repository's academic AWS audit recorded **467 Prowler check-resource results** (342 pass, 111 fail, 14 manual), **31 ScoutSuite collection-error records**, and **10 findings**. The audit documents issues including broad SSH exposure, unencrypted EBS, and Cognito MFA not being enforced. Remediation closure is not verified.
+- These audit results describe an AWS Academy lab assessment; they are not ISO certification, proof of compliance, or assurance about a current production environment.
 
-Create the required PostgreSQL databases:
+See the [AWS Cloud Security Audit overview](AWS_Cloud_Security_Audit/README.md) for scope, methods, evidence limitations, findings, and supporting documents.
 
-```sql
-CREATE DATABASE ecommerce_user_db;
+## Known limitation
 
-CREATE DATABASE ecommerce_product_db;
+The audit documentation records an OAuth `invalid_scope` response during a deployed HTTPS sign-in check. Confirm that the Cognito App Client allows the configured `openid`, `email`, and `profile` scopes before relying on that flow. This records a prior test result; it does not establish the current state of a live deployment.
 
-CREATE DATABASE ecommerce_order_db;
-```
+## Contributions
 
-Configure each service's `.env` file.
-
-Example:
-
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_user_db
-COGNITO_REGION=your-region
-COGNITO_USER_POOL_ID=your-user-pool-id
-COGNITO_CLIENT_ID=your-public-app-client-id
-```
-
-Use the appropriate database name for each service.
-
-### Product Service
-
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_product_db
-COGNITO_REGION=your-region
-COGNITO_USER_POOL_ID=your-user-pool-id
-COGNITO_CLIENT_ID=your-public-app-client-id
-```
-
-### User Service
-
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_user_db
-COGNITO_REGION=your-region
-COGNITO_USER_POOL_ID=your-user-pool-id
-COGNITO_CLIENT_ID=your-public-app-client-id
-```
-
-### Order Service
-
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/ecommerce_order_db
-COGNITO_REGION=your-region
-COGNITO_USER_POOL_ID=your-user-pool-id
-COGNITO_CLIENT_ID=your-public-app-client-id
-INTERNAL_SERVICE_TOKEN=server-only-placeholder
-
-USER_SERVICE_URL=http://localhost:5002
-PRODUCT_SERVICE_URL=http://localhost:5001
-```
-
-> Never commit real passwords, tokens, or Cognito values to GitHub.
-
----
-
-## ▶️ Running the Application
-
-Start each service in a separate terminal.
-
-### Product Service
-
-```bash
-cd product_services
-python app.py
-```
-
-Runs on:
-
-```text
-http://localhost:5001
-```
-
-### User Service
-
-```bash
-cd user_services
-python app.py
-```
-
-Runs on:
-
-```text
-http://localhost:5002
-```
-
-### Order Service
-
-```bash
-cd order_service
-python app.py
-```
-
-Runs on:
-
-```text
-http://localhost:5003
-```
-
-### API Gateway
-
-```bash
-cd api_gateway
-python app.py
-```
-
-Runs on:
-
-```text
-http://localhost:5000
-```
-
-### Frontend
-
-```bash
-cd front_end
-python app.py
-```
-
-Runs on:
-
-```text
-http://localhost:5500
-```
-
----
-
-# 🔌 API Endpoints
-
-## Users
-
-### Create User
-
-```http
-POST /users
-```
-
-Example request:
-
-```json
-{
-    "name": "Raj",
-    "email": "raj@gmail.com"
-}
-```
-
-### Get Users
-
-```http
-GET /users
-```
-
-### Get User
-
-```http
-GET /users/{id}
-```
-
----
-
-## Products
-
-### Create Product
-
-```http
-POST /products
-```
-
-Example:
-
-```json
-{
-    "name": "Laptop",
-    "price": 55000,
-    "stock": 10
-}
-```
-
-### Get Products
-
-```http
-GET /products
-```
-
-### Get Product
-
-```http
-GET /products/{id}
-```
-
-### Update Stock
-
-```http
-PUT /products/{id}/stock
-```
-
-Example:
-
-```json
-{
-    "stock": 20
-}
-```
-
-### Delete Product
-
-```http
-DELETE /products/{id}
-```
-
----
-
-## Orders
-
-### Create Order
-
-```http
-POST /orders
-```
-
-Example:
-
-```json
-{
-    "user_id": 1,
-    "product_id": 1,
-    "quantity": 2
-}
-```
-
-### Get Orders
-
-```http
-GET /orders
-```
-
-### Get Order
-
-```http
-GET /orders/{id}
-```
-
----
-
-# 🧪 Example API Flow
-
-### 1. Create User
-
-```text
-POST /users
-```
-
-```json
-{
-    "name": "Raj",
-    "email": "raj@gmail.com"
-}
-```
-
-User ID:
-
-```text
-1
-```
-
-### 2. Create Product
-
-```text
-POST /products
-```
-
-```json
-{
-    "name": "Laptop",
-    "price": 55000,
-    "stock": 10
-}
-```
-
-Product ID:
-
-```text
-1
-```
-
-### 3. Create Order
-
-```text
-POST /orders
-```
-
-```json
-{
-    "user_id": 1,
-    "product_id": 1,
-    "quantity": 2
-}
-```
-
-The system:
-
-1. Checks whether the user exists.
-2. Checks whether the product exists.
-3. Checks product stock.
-4. Calculates total price.
-5. Reduces product stock.
-6. Creates the order.
-7. Stores the order in PostgreSQL.
-
-Example:
-
-```text
-Product price = ₹55,000
-Quantity      = 2
-
-Total         = ₹110,000
-```
-
-Stock:
-
-```text
-Before order = 10
-Quantity     = 2
-After order  = 8
-```
-
----
-
-# 🌐 Frontend
-
-The frontend dashboard is available at:
-
-```text
-http://localhost:5500
-```
-
-It displays:
-
-* Users
-* Products
-* Product stock
-* Orders
-* Order quantity
-* Order total
-* Order status
-
----
-
-# 🔒 Security
-
-Protected API requests use a verified Cognito access token. The browser never receives the server-only `INTERNAL_SERVICE_TOKEN`.
-
----
-
-# 📊 Example Result
-
-```text
-E-Commerce Dashboard
-
-Users
--------------------------
-Raj
-ID: 1
-Email: raj@gmail.com
-
-Products
--------------------------
-Laptop
-Price: ₹55,000
-Stock: 8
-
-Orders
--------------------------
-Order #1
-User ID: 1
-Product ID: 1
-Quantity: 2
-Total: ₹110,000
-Status: CONFIRMED
-```
-
----
-
-# 🚀 Future Improvements
-
-* Docker and Docker Compose
-* JWT authentication
-* Redis caching
-* RabbitMQ/Kafka messaging
-* API documentation with Swagger/OpenAPI
-* Unit and integration tests
-* CI/CD with GitHub Actions
-* Centralized logging
-* Monitoring and health checks
-* Kubernetes deployment
-* Payment service
-* Inventory service
-* Notification service
-
-## Authentication
-
-The browser uses an Amazon Cognito User Pool public App Client with OAuth 2.0 Authorization Code Flow and PKCE. Cognito Managed Login collects and verifies the user's email, given name, and family name according to the User Pool attribute settings. The app stores the short-lived access token in `sessionStorage`; it does not use an ID token or refresh token as API authorization, and it never contains a client secret.
-
-The frontend reads these placeholders from its environment:
-
-```env
-COGNITO_DOMAIN=https://your-domain.auth.your-region.amazoncognito.com
-COGNITO_CLIENT_ID=your-public-app-client-id
-COGNITO_REDIRECT_URI=http://localhost:5500/
-COGNITO_LOGOUT_URI=http://localhost:5500/
-COGNITO_SCOPES=openid email profile
-```
-
-The API Gateway, user service, order service, and product service validate access-token signatures using the Cognito JWKS endpoint. They check the issuer, expiration, `RS256`, `token_use=access`, `sub`, and the expected `client_id`. JWKS keys are cached in memory. The user service then calls Cognito UserInfo with that already-validated access token and uses the returned `email`, `given_name`, and `family_name` claims for profile synchronization.
-
-`GET /users/me` maps the verified Cognito `sub` to `users.cognito_sub`, synchronizing the email, given name, and family name profile on first access. It reports the identity provider as Amazon Cognito only after the verified UserInfo lookup succeeds. The `cognito_sub` column is nullable so existing users are preserved. The order service derives `orders.user_id` from this mapping, filters `GET /orders` to that user, and returns 404 for another user's order. A conflicting body `user_id` on `POST /orders` is rejected.
-
-### AWS Cognito configuration required after this code change
-
-Create a User Pool, a public App Client with no client secret, a hosted UI domain, and callback/logout URLs matching the configured values. Enable email sign-up and verification. Add `email`, `given_name`, and `family_name` as required or writable standard attributes according to your registration policy. Allow the `openid`, `email`, and `profile` scopes so Cognito UserInfo can return the profile. Then provide these values to Compose as placeholders replaced by your deployment configuration:
-
-```env
-COGNITO_REGION=your-region
-COGNITO_USER_POOL_ID=your-user-pool-id
-COGNITO_CLIENT_ID=your-public-app-client-id
-COGNITO_ISSUER=https://cognito-idp.your-region.amazonaws.com/your-user-pool-id
-COGNITO_DOMAIN=https://your-domain.auth.your-region.amazoncognito.com
-COGNITO_REDIRECT_URI=https://your-frontend-host/
-COGNITO_LOGOUT_URI=https://your-frontend-host/
-COGNITO_SCOPES=openid email profile
-INTERNAL_SERVICE_TOKEN=server-only-internal-placeholder
-```
-
-### Verified production OAuth issue
-
-The deployed HTTPS flow was tested against the configured Cognito domain and returned:
-
-```text
-error=invalid_request
-error_description=invalid_scope
-```
-
-The application is requesting `openid email profile`, but the Cognito App Client currently does not allow the requested scope, or the deployed `COGNITO_SCOPES` value does not match the App Client. In the Cognito console, open the App Client, enable the authorization-code grant with PKCE, add the `openid`, `email`, and `profile` scopes to the allowed scopes, and save. The `profile` scope is required for UserInfo to return `given_name` and `family_name`.
-
-### Database migration
-
-On startup, the user service runs an additive PostgreSQL migration equivalent to:
-
-```sql
-ALTER TABLE users ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS family_name VARCHAR(100);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_users_cognito_sub
-ON users (cognito_sub) WHERE cognito_sub IS NOT NULL;
-```
-
-It does not drop tables, delete users, or wipe existing data.
-
----
-
-# 👨‍💻 Author
-
-**Raj**
-
-Python | Flask | PostgreSQL | REST API | Microservices
-
----
-
-## 📄 License
-
-This project is created for learning and portfolio purposes.
+This is a collaborative project. My recorded commits include Cognito authentication work, authorization changes to user endpoints, CORS configuration, and adding the cloud security audit materials. The audit documentation credits Wejden Cherif and Maram Raboudi. The repository history is the source for individual code changes; this README does not claim sole authorship.
 
