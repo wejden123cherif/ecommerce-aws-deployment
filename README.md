@@ -4,6 +4,18 @@ A collaborative e-commerce application built from Flask services for users, prod
 
 ## Architecture
 
+### AWS security architecture
+
+The figure below is taken from the project report and shows the documented AWS Academy lab deployment in a single AWS account. It covers the e-commerce workload, monitoring and detection services, and the tested incident-response path. It describes the lab at the time of the report; it does not mean those AWS resources are still running.
+
+![AWS e-commerce deployment and incident-response architecture from the project report](AWS_Cloud_Security_Audit/04_Architecture/AWS_Security_Architecture_from_Report.png)
+
+The public entry used a Cloudflare Worker HTTPS endpoint, AWS WAF, and an Application Load Balancer. The report notes that the Worker-to-ALB origin hop used HTTP, so encryption was not end to end. The ALB routed traffic to Docker Compose services on Amazon EC2; Amazon RDS for PostgreSQL ran in private subnets. Amazon Cognito provided authentication.
+
+For the incident-response exercise, CloudTrail and CloudWatch signals flowed through EventBridge to detection and correlation Lambdas. Correlated evidence was stored in S3 and alerts sent through SNS. Step Functions invoked Systems Manager Automation to contain an approved disposable test instance; the production application host was excluded. This was verified in the academic lab, not as a production response service.
+
+### Local Compose architecture
+
 ```mermaid
 flowchart LR
     Browser[Browser]
@@ -29,47 +41,6 @@ flowchart LR
 ```
 
 The local Compose stack runs one PostgreSQL container and initializes separate databases for the services. Protected gateway and service routes validate Cognito access tokens; the order service checks user and product information before creating an order and adjusting stock.
-
-### AWS lab deployment and security operations
-
-The project report documents a deployed lab environment with the containerized application on Amazon EC2, an Application Load Balancer (ALB), private Amazon RDS for PostgreSQL, Amazon Cognito, and a Cloudflare Worker HTTPS entry point. The ALB routed storefront and API traffic to separate application target groups. The report identifies the Worker-to-ALB origin hop as HTTP, a limitation that should be addressed before any production use.
-
-```mermaid
-flowchart LR
-    Client[Browser]
-    Edge[Cloudflare Worker<br/>HTTPS entry]
-    WAF[AWS WAF]
-    ALB[Application Load Balancer]
-    App[Amazon EC2<br/>Docker Compose services]
-    DB[(Amazon RDS<br/>PostgreSQL)]
-    Cognito[Amazon Cognito]
-    CT[CloudTrail]
-    CW[CloudWatch<br/>WAF and infrastructure signals]
-    EB[Amazon EventBridge]
-    Detect[AWS Lambda<br/>detection and correlation]
-    S3[Amazon S3<br/>incident evidence]
-    SNS[Amazon SNS<br/>notifications]
-    SF[Step Functions]
-    SSM[Systems Manager Automation<br/>containment runbook]
-    Test[Approved disposable<br/>test EC2]
-
-    Client -->|HTTPS| Edge --> WAF --> ALB
-    ALB -->|storefront and API routes| App --> DB
-    Client -. sign-in .-> Cognito
-    App -. authentication .-> Cognito
-    WAF --> CW
-    App -. operational metrics .-> CW
-    CT --> EB --> Detect
-    CW --> EB
-    Detect --> S3
-    Detect --> SNS
-    Detect --> SF --> SSM --> Test
-    SF --> SNS
-```
-
-The report describes two controlled signals: a WAF test rule counted matching HTTP requests, and CloudTrail/EventBridge detected a test security-group ingress change. A Lambda correlator joined relevant signals within a 15-minute window, stored incident records in S3, sent SNS alerts, and started a Step Functions workflow. The workflow validated the incident and restricted its target to an approved disposable test instance before invoking Systems Manager Automation. It polled for the runbook's terminal status and reported the outcome. The production application host was excluded from containment tests.
-
-The report records successful laboratory verification of the individual detections and the integrated response path. This is a team-reported academic lab result, not an independent assessment, production deployment claim, or evidence that a current AWS environment remains active. Detection signals were simulated and do not by themselves establish compromise. The report also calls out production hardening needs, including narrower IAM permissions, stronger event deduplication and attribution, approval safeguards for disruptive actions, and tested recovery procedures.
 
 ## Features
 

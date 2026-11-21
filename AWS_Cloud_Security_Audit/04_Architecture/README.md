@@ -1,27 +1,20 @@
 # AWS deployment architecture
 
-```mermaid
-flowchart LR
-    Browser[Browser] --> Worker[Cloudflare Worker]
-    Worker --> ALB[Application Load Balancer]
-    WAF[AWS WAF] -. Web ACL .-> ALB
-    ALB --> EC2[EC2: Docker services]
-    EC2 --> RDS[(RDS PostgreSQL)]
-    Browser <--> Cognito[Amazon Cognito]
-    EC2 --> CW[CloudWatch]
-    CW --> SNS[SNS notifications]
-    Trail[CloudTrail] --> S3[(Audit log bucket)]
-```
+## Architecture documented in the project report
 
-The Cloudflare Worker routes browser and API traffic to the application hosted on EC2 through the WAF-associated ALB. Cognito supplies application authentication. CloudTrail, CloudWatch and SNS provide the recorded logging and monitoring configuration.
+The diagram below is taken from the academic project report. It describes the AWS Academy lab deployment in one AWS account, including the e-commerce workload, monitoring and detection services, and the incident-response workflow. It is historical project evidence, not a statement that the AWS resources remain active.
 
-The environment uses one AWS account with logical application and security zones. EC2 is in a public subnet; RDS uses private database subnets and linked security groups. The observed ALB listener is HTTP on port 80, so edge TLS does not establish origin-hop encryption. Incident-response automation is architectural context unless separately demonstrated.
+![AWS e-commerce deployment and incident-response architecture documented in the project report](AWS_Security_Architecture_from_Report.png)
 
-Read the [configuration baseline](../06_Configuration/01_AWS_Environment_Baseline.md) for the observed resource settings and the [evidence limitations](../14_Appendices/Evidence_Gaps_and_Interpretation.md) for assurance boundaries.
+The report records a Cloudflare Worker HTTPS entry point, AWS WAF and an Application Load Balancer routing to Docker Compose application services on Amazon EC2. Amazon RDS for PostgreSQL was placed in private subnets. Amazon Cognito handled authentication. CloudTrail and CloudWatch signals were routed through EventBridge to detection/correlation Lambdas; incident evidence was saved to S3, notifications were sent with SNS, and Step Functions invoked Systems Manager Automation against an approved disposable test instance. The report notes that the Worker-to-ALB origin hop was HTTP and that the production application host was excluded from containment tests.
 
-## Conceptual diagrams
+The report describes a verified academic lab workflow. It does not establish current live status or production assurance. The diagram contains no AWS account number, ARN, resource ID, or credential.
+
+## Conceptual reference diagrams
+
+These older diagrams illustrate a proposed design and logical security zones; they are not the deployed topology above. In particular, their separate application/security account boundary is conceptual. The report documents the lab as a single AWS account.
 
 - [Application and security zones](Architecture_Reference_Application_and_Security_Zones.png)
 - [Detailed reference architecture](Architecture_Reference_Detailed.png)
 
-These reference diagrams include proposed incident-response automation and logical zones. The configuration baseline and test results establish which controls were observed in the lab.
+See the [configuration baseline](../06_Configuration/01_AWS_Environment_Baseline.md) for observed configuration and [evidence limitations](../14_Appendices/Evidence_Gaps_and_Interpretation.md) for the scope and limits of assurance.
